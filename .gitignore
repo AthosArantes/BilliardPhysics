@@ -1,0 +1,13 @@
+.vs/
+
+[Bb]in/x64Debug/
+[Bb]in/x64Release/
+
+[Oo]bj/
+[Ll]ib/
+
+[Oo]ut/
+[Ll]og/
+[Ll]ogs/
+
+[Pp]rivate/

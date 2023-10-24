@@ -38,6 +38,11 @@ namespace BilliardPhysics
 		return std::numeric_limits<scalar_t>::infinity();
 	}
 
+	inline constexpr scalar_t scalar_t_epsilon() noexcept
+	{
+		return std::numeric_limits<scalar_t>::epsilon();
+	}
+
 	inline scalar_t sqrt(scalar_t v) { return std::sqrt(v); }
 	inline scalar_t acos(scalar_t v) { return std::acos(v); }
 	inline scalar_t abs(scalar_t v) { return std::fabs(v); }

@@ -152,6 +152,10 @@ namespace BilliardPhysics
 		scalar_t OmegaMin;
 		scalar_t AirResistance;
 
+		// The distance used to keep balls from touching each other.
+		// Very small value.
+		scalar_t MinColDist;
+
 		// Collision properties for the table
 		ColliderShapeProperty slateProp;
 

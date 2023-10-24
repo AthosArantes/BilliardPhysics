@@ -48,6 +48,8 @@ namespace BilliardPhysics
 		OmegaMin = SlideThreshSpeed / SpotR;
 		AirResistance = scalar_t(1) / scalar_t(1000);
 
+		minColDist = scalar_t_epsilon();
+
 		slateProp.mu = scalar_t(2) / scalar_t(10);
 		slateProp.loss0 = scalar_t(6) / scalar_t(10);
 		slateProp.loss_max = scalar_t(80) / scalar_t(100);
@@ -456,7 +458,7 @@ namespace BilliardPhysics
 
 		// checks
 		for (Ball& ball : balls) {
-			if (!ball.enabled || ball.pocketIndex != scalar_t(-1)) {
+			if (!ball.enabled || ball.pocketIndex != -1) {
 				continue;
 			}
 
@@ -654,7 +656,7 @@ namespace BilliardPhysics
 
 			} else {
 				// Simpler physics for balls inside pockets
-				if (ball.pocketIndex != scalar_t(-1)) {
+				if (ball.pocketIndex != -1) {
 					PocketHole& pocket = pockets[ball.pocketIndex];
 
 					// Bounce the ball inside the pocket
@@ -709,8 +711,8 @@ namespace BilliardPhysics
 				}
 
 				dist = ((ball.diameter + ball2.diameter) / scalar_t(2)) - (ball.position - ball2.position).Abs();
-				if (dist > scalar_t(0)) {
-					ball.position += (ball.position - ball2.position).Unit() * dist;
+				if (dist >= scalar_t(0)) {
+					ball.position += (ball.position - ball2.position).Unit() * (dist + MinColDist);
 				}
 			}
 #endif

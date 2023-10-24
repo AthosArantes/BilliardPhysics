@@ -592,11 +592,6 @@ namespace BilliardPhysics
 								ball.velocity = ball.angularVelocity.Cross(Vector {scalar_t(0), scalar_t(0), ball_radius});
 							}
 
-							if (ball.angularVelocity.Abs() < OmegaMin && ball.velocity.Abs() < SlideThreshSpeed) {
-								ball.velocity = Vector::ZERO;
-								ball.angularVelocity = Vector::ZERO;
-							}
-
 						} else {
 							// rolling forces
 							fricmom = Vector::ZERO;
@@ -618,10 +613,11 @@ namespace BilliardPhysics
 
 							// align v with w to assure rolling
 							ball.velocity = ball.angularVelocity.Cross(Vector {scalar_t(0), scalar_t(0), ball_radius});
-							if (ball.angularVelocity.Abs() < OmegaMin && ball.velocity.Abs() < SlideThreshSpeed) {
-								ball.velocity = Vector::ZERO;
-								ball.angularVelocity = Vector::ZERO;
-							}
+						}
+
+						if (ball.angularVelocity.Abs() < OmegaMin && ball.velocity.Abs() < SlideThreshSpeed) {
+							ball.velocity = Vector::ZERO;
+							ball.angularVelocity = Vector::ZERO;
 						}
 					}
 

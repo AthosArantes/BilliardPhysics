@@ -35,7 +35,7 @@ namespace BilliardPhysics
 
 	inline constexpr scalar_t scalar_t_infinity() noexcept
 	{
-		return std::numeric_limits<float>::infinity();
+		return std::numeric_limits<scalar_t>::infinity();
 	}
 
 	inline scalar_t sqrt(scalar_t v) { return std::sqrt(v); }
@@ -44,6 +44,7 @@ namespace BilliardPhysics
 	inline scalar_t sin(scalar_t v) { return std::sin(v); }
 	inline scalar_t cos(scalar_t v) { return std::cos(v); }
 
+	// ==========================================================================================
 	struct Vector
 	{
 		Vector operator-(const Vector& rhs) const noexcept
@@ -114,14 +115,14 @@ namespace BilliardPhysics
 		scalar_t Abs() const noexcept
 		{
 			scalar_t lensq = Abssq();
-			return (lensq >= 0) ? sqrt(Abssq()) : 0;
+			return (lensq >= scalar_t(0)) ? sqrt(Abssq()) : scalar_t(0);
 		}
 
 		// Normalize
 		Vector Unit() const noexcept
 		{
 			scalar_t l = Abs();
-			return (l != 0) ? Vector {x / l, y / l, z / l} : Vector {0, 0, 0};
+			return (l != scalar_t(0)) ? Vector {x / l, y / l, z / l} : Vector {scalar_t(0), scalar_t(0), scalar_t(0)};
 		}
 
 		// Returns positive angle between 0 and M_PI
@@ -133,7 +134,7 @@ namespace BilliardPhysics
 		Vector Proj(const Vector& rhs) const noexcept
 		{
 			scalar_t v2ls = rhs.Mul(rhs);
-			return (v2ls != 0) ? rhs * (Mul(rhs) / v2ls) : Vector {x, y, z};
+			return (v2ls != scalar_t(0)) ? rhs * (Mul(rhs) / v2ls) : Vector {x, y, z};
 		}
 
 		Vector NComp(const Vector& rhs) const noexcept
@@ -147,11 +148,14 @@ namespace BilliardPhysics
 			return (*this - v1).NComp(v2 - v1).Abs();
 		}
 
+		static Vector ZERO;
+
 		scalar_t x;
 		scalar_t y;
 		scalar_t z;
 	};
 
+	// ==========================================================================================
 	// Used to calculate rotation matrix
 	struct Matrix
 	{
@@ -189,6 +193,8 @@ namespace BilliardPhysics
 				}
 			}
 		}
+
+		static Matrix IDENTITY;
 
 		Vector v[3];
 	};

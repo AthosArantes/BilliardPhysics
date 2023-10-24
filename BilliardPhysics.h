@@ -48,11 +48,11 @@ namespace BilliardPhysics
 		// Rotation matrix
 		Matrix rotation;
 
-		// Set to 0 to disable all physics interaction.
-		int enabled;
-
 		// Zero based pocket index if fully inside a pocket.
 		int pocketIndex;
+
+		// Set to 0 to disable all physics interaction.
+		int enabled;
 	};
 
 	struct PocketHole
@@ -104,7 +104,7 @@ namespace BilliardPhysics
 		virtual ~Engine();
 
 	public:
-		// Returns the pocket index if the ball can be pocketed, or -1 if the ball cannot be pocketed.
+		// Returns the pocket index if the ball is inside a pocket area, -1 otherwise.
 		int CanPocketBall(const Ball& ball) const;
 
 		bool IsBallInColliderRange(const Ball& ball, const ColliderShape& shape) const;
@@ -124,8 +124,11 @@ namespace BilliardPhysics
 		void MoveBalls(scalar_t dt);
 		void ApplyRotationMatrix(Ball& ball, scalar_t dt);
 
+		// Ball interaction with a shape collider
 		void BallInteraction(Ball& ball, const ColliderShape& shape, const ColliderShapeProperty& shapeProp);
+		// Ball interaction with another ball
 		void BallInteraction(Ball& b1, Ball& b2);
+		// Ball interaction with table plane
 		void BallInteraction(Ball& ball);
 
 		// this one does not remove fallen balls
@@ -148,9 +151,6 @@ namespace BilliardPhysics
 		scalar_t SpotR;
 		scalar_t OmegaMin;
 		scalar_t AirResistance;
-
-		// Tolerance used to snap ball on plane zero.
-		scalar_t ThreshPosition;
 
 		// Collision properties for the table
 		ColliderShapeProperty slateProp;

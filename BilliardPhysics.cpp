@@ -48,7 +48,7 @@ namespace BilliardPhysics
 		OmegaMin = SlideThreshSpeed / SpotR;
 		AirResistance = scalar_t(1) / scalar_t(1000);
 
-		minColDist = scalar_t_epsilon();
+		MinColDist = scalar_t_epsilon();
 
 		slateProp.mu = scalar_t(2) / scalar_t(10);
 		slateProp.loss0 = scalar_t(6) / scalar_t(10);

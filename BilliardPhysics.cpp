@@ -36,6 +36,22 @@ namespace BilliardPhysics
 	}
 
 	// ==========================================================================================
+	Ball::Ball()
+	{
+		diameter = scalar_t(57) / scalar_t(1000);
+		mass = scalar_t(17) / scalar_t(100);
+		massMom = mass * diameter * diameter / scalar_t(5);
+		
+		position = Vector::ZERO;
+		velocity = Vector::ZERO;
+		angularVelocity = Vector::ZERO;
+		rotation = Matrix::IDENTITY;
+
+		pocketIndex = -1;
+		enabled = 1;
+	}
+
+	// ==========================================================================================
 	Engine::Engine()
 	{
 		Gravity = scalar_t(981) / scalar_t(100);
@@ -45,7 +61,7 @@ namespace BilliardPhysics
 
 		SlideThreshSpeed = scalar_t(5) / scalar_t(1000);
 		SpotR = scalar_t(12) / scalar_t(1000);
-		OmegaMin = SlideThreshSpeed / SpotR;
+		OmegaMin = scalar_t(1) / scalar_t(30); //SlideThreshSpeed / SpotR;
 		AirResistance = scalar_t(1) / scalar_t(1000);
 
 		MinColDist = scalar_t_epsilon();

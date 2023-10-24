@@ -33,6 +33,8 @@ namespace BilliardPhysics
 {
 	struct Ball
 	{
+		Ball();
+
 		// Diameter [m]
 		scalar_t diameter;
 		// Mass [kg]

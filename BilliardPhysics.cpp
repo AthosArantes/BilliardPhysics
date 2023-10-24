@@ -61,7 +61,7 @@ namespace BilliardPhysics
 
 		SlideThreshSpeed = scalar_t(5) / scalar_t(1000);
 		SpotR = scalar_t(12) / scalar_t(1000);
-		OmegaMin = scalar_t(1) / scalar_t(30); //SlideThreshSpeed / SpotR;
+		OmegaMin = SlideThreshSpeed / SpotR;
 		AirResistance = scalar_t(1) / scalar_t(1000);
 
 		MinColDist = scalar_t_epsilon();

@@ -43,6 +43,16 @@ namespace BilliardPhysics
 		return std::numeric_limits<scalar_t>::epsilon();
 	}
 
+	inline constexpr scalar_t scalar_t_max_value() noexcept
+	{
+		return std::numeric_limits<scalar_t>::max();
+	}
+
+	inline constexpr scalar_t scalar_t_min_value() noexcept
+	{
+		return std::numeric_limits<scalar_t>::min();
+	}
+
 	inline scalar_t sqrt(scalar_t v) { return std::sqrt(v); }
 	inline scalar_t acos(scalar_t v) { return std::acos(v); }
 	inline scalar_t abs(scalar_t v) { return std::fabs(v); }
@@ -105,41 +115,38 @@ namespace BilliardPhysics
 			return {y * rhs.z - rhs.y * z, z * rhs.x - rhs.z * x, x * rhs.y - rhs.x * y};
 		}
 
-		scalar_t Mul(const Vector& rhs) const noexcept
+		scalar_t Dot(const Vector& rhs) const noexcept
 		{
 			return x * rhs.x + y * rhs.y + z * rhs.z;
 		}
 
-		// LengthSqr
-		scalar_t Abssq() const noexcept
+		scalar_t LengthSqr() const noexcept
 		{
 			return x * x + y * y + z * z;
 		}
 
-		// Length
-		scalar_t Abs() const noexcept
+		scalar_t Length() const noexcept
 		{
-			scalar_t lensq = Abssq();
-			return (lensq >= scalar_t(0)) ? sqrt(Abssq()) : scalar_t(0);
+			return sqrt(LengthSqr());
 		}
 
 		// Normalize
 		Vector Unit() const noexcept
 		{
-			scalar_t l = Abs();
+			scalar_t l = Length();
 			return (l != scalar_t(0)) ? Vector {x / l, y / l, z / l} : Vector {scalar_t(0), scalar_t(0), scalar_t(0)};
 		}
 
 		// Returns positive angle between 0 and M_PI
 		scalar_t Angle(const Vector& rhs) const noexcept
 		{
-			return acos(Unit().Mul(rhs));
+			return acos(Unit().Dot(rhs));
 		}
 
 		Vector Proj(const Vector& rhs) const noexcept
 		{
-			scalar_t v2ls = rhs.Mul(rhs);
-			return (v2ls != scalar_t(0)) ? rhs * (Mul(rhs) / v2ls) : Vector {x, y, z};
+			scalar_t v2ls = rhs.Dot(rhs);
+			return (v2ls != scalar_t(0)) ? rhs * (Dot(rhs) / v2ls) : Vector {x, y, z};
 		}
 
 		Vector NComp(const Vector& rhs) const noexcept
@@ -150,7 +157,7 @@ namespace BilliardPhysics
 		// Normal distance to line(v1,v2)
 		scalar_t NDist(const Vector& v1, const Vector& v2) const noexcept
 		{
-			return (*this - v1).NComp(v2 - v1).Abs();
+			return (*this - v1).NComp(v2 - v1).Length();
 		}
 
 		static Vector ZERO;
@@ -161,46 +168,29 @@ namespace BilliardPhysics
 	};
 
 	// ==========================================================================================
-	// Used to calculate rotation matrix
-	struct Matrix
+	struct BoundingBox
 	{
-		void Rotate(const Vector& w, scalar_t phi)
+		// Test if another bounding box intersects.
+		bool Intersects(const BoundingBox& rhs) const
 		{
-			Vector bx, by, bz; // base
-			Vector dp, dp2;
-			Vector nax {0, 0, 0};
-
-			if (phi != 0 && w.Abs() > 0) {
-				bz = w.Unit();
-				if (abs(bz.x) <= abs(bz.y) && abs(bz.x) <= abs(bz.z)) nax = Vector {1, 0, 0};
-				if (abs(bz.y) <= abs(bz.z) && abs(bz.y) <= abs(bz.x)) nax = Vector {0, 1, 0};
-				if (abs(bz.z) <= abs(bz.x) && abs(bz.z) <= abs(bz.y)) nax = Vector {0, 0, 1};
-				bx = (nax - (bz * nax.Mul(bz))).Unit();
-				by = bz.Cross(bx);
-
-				scalar_t sinphi = sin(phi);
-				scalar_t cosphi = cos(phi);
-
-				for (int i = 0; i < 3; i++) {
-					// transform into axis-system
-					dp.x = v[i].Mul(bx);
-					dp.y = v[i].Mul(by);
-					dp.z = v[i].Mul(bz);
-
-					dp2.x = dp.x * cosphi - dp.y * sinphi;
-					dp2.y = dp.y * cosphi + dp.x * sinphi;
-					dp2.z = dp.z;
-
-					// retransform back
-					v[i].x = dp2.x * bx.x + dp2.y * by.x + dp2.z * bz.x;
-					v[i].y = dp2.x * bx.y + dp2.y * by.y + dp2.z * bz.y;
-					v[i].z = dp2.x * bx.z + dp2.y * by.z + dp2.z * bz.z;
-				}
+			if (rhs.max.x < min.x || rhs.min.x > max.x || rhs.max.y < min.y || rhs.min.y > max.y || rhs.max.z < min.z || rhs.min.z > max.z) {
+				return false;
 			}
+			return true;
 		}
 
-		static Matrix IDENTITY;
+		// Merge another bounding box.
+		void Merge(const BoundingBox& box)
+		{
+			if (box.min.x < min.x) { min.x = box.min.x; }
+			if (box.min.y < min.y) { min.y = box.min.y; }
+			if (box.min.z < min.z) { min.z = box.min.z; }
+			if (box.max.x > max.x) { max.x = box.max.x; }
+			if (box.max.y > max.y) { max.y = box.max.y; }
+			if (box.max.z > max.z) { max.z = box.max.z; }
+		}
 
-		Vector v[3];
+		Vector min;
+		Vector max;
 	};
 }

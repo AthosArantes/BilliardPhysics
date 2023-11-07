@@ -31,12 +31,93 @@
 
 namespace BilliardPhysics
 {
-	struct Ball
+	class Collider
 	{
-		Ball();
+	public:
+		struct Shape
+		{
+			enum class Type
+			{
+				Point,
+				Line,
+				Triangle,
+			};
 
-		// Diameter [m]
-		scalar_t diameter;
+			Type type;
+			Vector r1; // pos (Point, Line, Triangle)
+			Vector r2; // pos (Line, Triangle)
+			Vector r3; // pos (Triangle)
+			Vector normal;
+		};
+
+		struct Property
+		{
+			// Friction const
+			scalar_t mu;
+			// Const loss per hit (0th order in speed)
+			scalar_t loss0;
+			// Max loss
+			scalar_t loss_max;
+			// Width of higher order loss curve
+			scalar_t loss_wspeed;
+		};
+
+	public:
+		virtual ~Collider();
+
+		// Update the bounding box of all collider shapes.
+		void Update();
+
+	public:
+		// Collider shapes.
+		std::vector<Shape> shapes;
+		// Physics properties of the shapes.
+		Property property;
+
+		// Bounding box of all collider shapes.
+		BoundingBox bbox;
+	};
+
+	// ==========================================================================================
+	class Pocket
+	{
+	public:
+		virtual ~Pocket();
+
+	public:
+		Vector position;
+		scalar_t radius;
+		scalar_t depth;
+	};
+
+	// ==========================================================================================
+	class Ball
+	{
+		friend class Engine;
+
+	public:
+		Ball();
+		virtual ~Ball();
+
+		void Define(scalar_t radius, scalar_t mass);
+
+		bool IsPocketed() const { return inPocket != nullptr; }
+
+	protected:
+		virtual void ApplyRotation(scalar_t dt);
+		virtual void OnCollided(const Ball* ball, scalar_t dt);
+		virtual void OnCollided(const Collider::Shape* shape, const Collider* collider, scalar_t dt);
+		virtual void OnPocketed(const Pocket* pocket);
+
+	protected:
+		// Bounding box for collider filtering.
+		BoundingBox bbox;
+		// The pocket if it's fully inside one, nullptr otherwise.
+		Pocket* inPocket;
+
+	public:
+		// Radius [m]
+		scalar_t radius;
 		// Mass [kg]
 		scalar_t mass;
 		// Mass [kg*m^2]
@@ -44,58 +125,11 @@ namespace BilliardPhysics
 
 		Vector position;
 		Vector velocity;
-
 		// Rotation speed and axe [rad./s] in table coords
 		Vector angularVelocity;
-		// Rotation matrix
-		Matrix rotation;
 
-		// Zero based pocket index if fully inside a pocket.
-		int pocketIndex;
-
-		// Set to 0 to disable all physics interaction.
-		int enabled;
-	};
-
-	struct PocketHole
-	{
-		Vector position;
-		scalar_t radius;
-		scalar_t depth;
-	};
-
-	struct ColliderShape
-	{
-		enum class Type
-		{
-			Point,
-			Line,
-			Triangle,
-		};
-
-		Type type;
-		Vector r1; // pos
-		Vector r2; // pos
-		Vector r3; // pos
-		Vector normal;
-	};
-
-	struct ColliderShapeProperty
-	{
-		// Friction const
-		scalar_t mu;
-		// Const loss per hit (0th order in speed)
-		scalar_t loss0;
-		// Max loss
-		scalar_t loss_max;
-		// Width of higher order loss curve
-		scalar_t loss_wspeed;
-	};
-
-	struct ColliderShapeGroup
-	{
-		std::vector<ColliderShape> shapes;
-		ColliderShapeProperty property;
+		// Set to false to disable all physics interactions.
+		bool enabled;
 	};
 
 	// ==========================================================================================
@@ -105,39 +139,46 @@ namespace BilliardPhysics
 		Engine();
 		virtual ~Engine();
 
-	public:
-		// Returns the pocket index if the ball is inside a pocket area, -1 otherwise.
-		int CanPocketBall(const Ball& ball) const;
+	protected:
+		// Return the pocket which the ball is within it's area.
+		Pocket* GetPocketBallInside(const Ball* ball) const;
 
-		bool IsBallInColliderRange(const Ball& ball, const ColliderShape& shape) const;
-		scalar_t BallDistance(const Ball& ball, const ColliderShape& shape) const;
+		bool IsBallInColliderRange(const Ball* ball, const Collider::Shape* shape) const;
+		scalar_t BallDistance(const Ball* ball, const Collider::Shape* shape) const;
 
-		// Returns 1 if collision shape and ball strobe away from each other, 0 else (at time dt)
-		bool BallCollided(const Ball& ball, const ColliderShape& shape, scalar_t dt) const;
-		// Returns 1 if balls strobe away from each other, 0 else (at time dt)
-		bool BallCollided(const Ball& b1, const Ball& b2, scalar_t dt) const;
+		// Returns true if collision shape and ball strobe away from each other, false else (at time dt)
+		bool BallCollided(const Ball* ball, const Collider::Shape* shape, scalar_t dt) const;
+		// Returns true if balls strobe away from each other, false else (at time dt)
+		bool BallCollided(const Ball* b1, const Ball* b2, scalar_t dt) const;
 
-		Vector PerimeterSpeed(const Ball& ball) const;
-		Vector PerimeterSpeedNormal(const Ball& ball, const Vector& normal) const;
+		Vector PerimeterSpeed(const Ball* ball) const;
+		Vector PerimeterSpeedNormal(const Ball* ball, const Vector& normal) const;
 
-		scalar_t CalcCollisionTime(const Ball& b1, const Ball& b2) const;
-		scalar_t CalcCollisionTime(const Ball& ball, const ColliderShape& shape) const;
+		scalar_t CalcCollisionTime(const Ball* b1, const Ball* b2) const;
+		scalar_t CalcCollisionTime(const Ball* ball, const Collider::Shape* shape) const;
 
 		void MoveBalls(scalar_t dt);
-		void ApplyRotationMatrix(Ball& ball, scalar_t dt);
+		void CollectColliders(const Ball* ball);
 
 		// Ball interaction with a shape collider
-		void BallInteraction(Ball& ball, const ColliderShape& shape, const ColliderShapeProperty& shapeProp);
+		void BallInteraction(Ball* ball, const Collider::Shape* shape, const Collider* collider);
 		// Ball interaction with another ball
-		void BallInteraction(Ball& b1, Ball& b2);
-		// Ball interaction with table plane
-		void BallInteraction(Ball& ball);
+		void BallInteraction(Ball* b1, Ball* b2);
+		// Ball interaction with table
+		void BallInteraction(Ball* ball);
+
+		// Apply collision threshold to intersecting balls.
+		void ApplyContactThreshold(Ball* ball);
 
 		// this one does not remove fallen balls
 		void StepSimulationEuler(scalar_t dt, int depth);
 		int StepSimulation(scalar_t dt);
 
-	public:
+	private:
+		// Collected colliders to test against a ball.
+		std::vector<Collider*> colliders;
+
+	protected:
 		// m/s^2
 		scalar_t Gravity;
 		// Table roll-friction
@@ -156,14 +197,19 @@ namespace BilliardPhysics
 
 		// The distance used to keep balls from touching each other.
 		// Very small value.
-		scalar_t MinColDist;
+		scalar_t ContactThreshold;
 
-		// Collision properties for the table
-		ColliderShapeProperty slateProp;
+		std::vector<Ball*> balls;
+		std::vector<Pocket*> pockets;
 
-		std::vector<Ball> balls;
-		std::vector<PocketHole> pockets;
-		std::vector<ColliderShapeGroup> cushions;
-		std::vector<ColliderShapeGroup> scene;
+		// Colliders that are always checked.
+		// Usually the cushions.
+		std::vector<Collider*> fieldColliders;
+		// Colliders that are checked when the ball is in air.
+		// Usually table borders, pocket borders, etc.
+		std::vector<Collider*> envColliders;
+
+		// Physics properties for the table plane.
+		Collider::Property fieldProperty;
 	};
 }

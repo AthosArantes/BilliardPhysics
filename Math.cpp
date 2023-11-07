@@ -29,9 +29,4 @@
 namespace BilliardPhysics
 {
 	Vector Vector::ZERO {scalar_t(0), scalar_t(0), scalar_t(0)};
-	Matrix Matrix::IDENTITY {
-		scalar_t(1), scalar_t(0), scalar_t(0),
-		scalar_t(0), scalar_t(1), scalar_t(0),
-		scalar_t(0), scalar_t(0), scalar_t(1)
-	};
 }

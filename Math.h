@@ -58,6 +58,7 @@ namespace BilliardPhysics
 	inline scalar_t abs(scalar_t v) { return std::fabs(v); }
 	inline scalar_t sin(scalar_t v) { return std::sin(v); }
 	inline scalar_t cos(scalar_t v) { return std::cos(v); }
+	inline scalar_t exp(scalar_t v) { return std::exp(v); }
 
 	// ==========================================================================================
 	struct Vector

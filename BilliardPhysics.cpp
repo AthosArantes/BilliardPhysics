@@ -54,9 +54,9 @@ namespace BilliardPhysics
 	{
 		radius = radius_;
 		mass = mass_;
-
-		scalar_t diameter = radius * scalar_t(2);
-		massMom = mass * diameter * diameter / scalar_t(10);
+		massMom = scalar_t(2) * mass * radius * radius / scalar_t(3);
+		invMass = mass > scalar_t(0) ? scalar_t(1) / mass : scalar_t(0);
+		invMassMom = massMom > scalar_t(0) ? scalar_t(1) / massMom : scalar_t(0);
 	}
 
 	void Ball::ApplyRotation(scalar_t dt)
@@ -122,14 +122,15 @@ namespace BilliardPhysics
 	Engine::Engine()
 	{
 		Gravity = scalar_t(981) / scalar_t(100);
-		MuRoll = scalar_t(2) / scalar_t(100);
+		MuRoll = scalar_t(1) / scalar_t(100);
 		MuSlide = scalar_t(2) / scalar_t(10);
-		MuBall = scalar_t(1) / scalar_t(10);
+		MuBall = scalar_t(5) / scalar_t(100);
 
 		SlideThreshSpeed = scalar_t(5) / scalar_t(1000);
-		SpotR = scalar_t(12) / scalar_t(1000);
-		OmegaMin = SlideThreshSpeed / SpotR;
-		AirResistance = scalar_t(1) / scalar_t(1000);
+		SpotR = sqrt(scalar_t(5));
+
+		//OmegaMin = SlideThreshSpeed / SpotR;
+		//AirResistance = scalar_t(1) / scalar_t(1000);
 
 		ContactThreshold = scalar_t_epsilon();
 
@@ -143,9 +144,8 @@ namespace BilliardPhysics
 
 	Pocket* Engine::GetPocketBallInside(const Ball* ball) const
 	{
-		Vector dr;
 		for (Pocket* pocket : pockets) {
-			dr = ball->position - pocket->position;
+			Vector dr = ball->position - pocket->position;
 			dr.z = scalar_t(0);
 			if (dr.LengthSqr() < pocket->radius * pocket->radius) {
 				return pocket;
@@ -350,27 +350,25 @@ namespace BilliardPhysics
 
 	void Engine::MoveBalls(scalar_t dt)
 	{
-		Vector dx, br;
-		BoundingBox bbox;
-
 		for (Ball* ball : balls) {
 			if (!ball->enabled) {
 				continue;
 			}
 
 			// Pre-translate bbox
-			br.x = br.y = br.z = ball->radius;
-			ball->bbox.min = ball->position - br;
-			ball->bbox.max = ball->position + br;
+			Vector vr {ball->radius, ball->radius, ball->radius};
+			ball->bbox.min = ball->position - vr;
+			ball->bbox.max = ball->position + vr;
 
 			// Translate ball
-			dx = ball->velocity * dt;
+			Vector dx = ball->velocity * dt;
 			ball->position += dx;
 
 			// Post-translate bbox
-			bbox.min = ball->position - br;
-			bbox.max = ball->position + br;
-			ball->bbox.Merge(bbox);
+			ball->bbox.Merge(BoundingBox {
+				ball->position - vr,
+				ball->position + vr
+			});
 
 			// Rotate ball
 			ball->ApplyRotation(dt);
@@ -503,13 +501,14 @@ namespace BilliardPhysics
 		b2->velocity += dv2;
 	}
 
+	// Ball interaction with table playfield
 	void Engine::BallInteraction(Ball* ball)
 	{
+		const Collider::Property& prop = fieldProperty;
+
 		Vector hit_normal {scalar_t(0), scalar_t(0), scalar_t(1)};
 		Vector vn = ball->velocity.Proj(hit_normal);
 		Vector vp = ball->velocity - vn;
-
-		const Collider::Property& prop = fieldProperty;
 
 		// normal component
 		scalar_t loss = prop.loss0 + (prop.loss_max - prop.loss0) * (scalar_t(1) - exp(-vn.Length() / prop.loss_wspeed));
@@ -529,25 +528,18 @@ namespace BilliardPhysics
 		}
 
 		ball->angularVelocity += dw;
-
-		// REVISION: Check this condition as it creates an unrealistic table bounce.
-		if (ps.LengthSqr() != scalar_t(0)) {
-			ball->velocity += dv;
-		}
+		ball->velocity += dv;
 	}
 
 	void Engine::ApplyContactThreshold(Ball* ball)
 	{
-		Vector dr;
-		scalar_t dist;
-
 		for (const Ball* ball2 : balls) {
 			if (ball2 == ball || !ball2->enabled) {
 				continue;
 			}
 
-			dr = ball->position - ball2->position;
-			dist = ball->radius + ball2->radius;
+			Vector dr = ball->position - ball2->position;
+			scalar_t dist = ball->radius + ball2->radius;
 			if (dr.LengthSqr() <= dist * dist) {
 				dist -= dr.Length();
 				ball->position += dr.Unit() * (dist + ContactThreshold);
@@ -642,14 +634,14 @@ namespace BilliardPhysics
 			BallInteraction(colBall, colShape, col);
 			colBall->OnCollided(colShape, col, -dtmin);
 
-			return StepSimulationEuler(-dtmin, depth + 1);
+			StepSimulationEuler(-dtmin, depth + 1);
 
 		} else if (colBall && colBall2) {
 			MoveBalls(dtmin);
 			BallInteraction(colBall, colBall2);
 			colBall->OnCollided(colBall2, -dtmin);
 
-			return StepSimulationEuler(-dtmin, depth + 1);
+			StepSimulationEuler(-dtmin, depth + 1);
 		}
 #ifdef BILLIARDPHYSICS_ADV_EDGE_COLLISION
 		else if (colBall && colPocket) {
@@ -657,7 +649,7 @@ namespace BilliardPhysics
 			BallInteraction(colBall, &edgePoint, nullptr);
 			colBall->OnCollided(&edgePoint, nullptr, -dtmin);
 
-			return StepSimulationEuler(-dtmin, depth + 1);
+			StepSimulationEuler(-dtmin, depth + 1);
 		}
 #endif
 
@@ -666,11 +658,6 @@ namespace BilliardPhysics
 	int Engine::StepSimulation(scalar_t dt)
 	{
 		int balls_moving = 0;
-		Vector accel, waccel, uspeed, uspeed_eff, uspeed2, uspeed_eff2, fricaccel, fricmom, rollmom, totmom;
-		Vector dr, normal;
-		scalar_t uspeed_eff_par, uspeed_eff2_par, roll_mom_r, dist, rs;
-		Pocket* pocket;
-		scalar_t ground;
 
 		// timestep with actual speeds, omegas,...
 		StepSimulationEuler(dt, 0);
@@ -683,44 +670,55 @@ namespace BilliardPhysics
 
 			// check if balls still moving
 			if (ball->velocity.LengthSqr() != scalar_t(0) || ball->angularVelocity.LengthSqr() != scalar_t(0)) {
-				balls_moving = 1;
+				++balls_moving;
 			}
 
-			ground = ball->position.z - ball->radius;
+			scalar_t ground = ball->position.z - ball->radius;
+			Pocket* pocket = ball->inPocket;
 
-			if (!ball->IsPocketed()) {
-				// Ball is not inside pocket
-
+			if (!pocket) {
+				// Ball is not fully inside a pocket, but may be hovering one.
 				pocket = GetPocketBallInside(ball);
-				if (pocket == nullptr) {
-					// calc accel 3D
-					accel = Vector::ZERO; // init acceleration
 
+				if (pocket == nullptr) {
 					// absolute and relative perimeter speed
-					uspeed = PerimeterSpeed(ball);
-					uspeed_eff = uspeed + ball->velocity;
+					Vector uspeed = PerimeterSpeed(ball);
+					Vector uspeed_eff = uspeed + ball->velocity;
 
 					// only if ball not flying do sliding/rolling
 					if (ground == scalar_t(0)) {
+						scalar_t diameter = ball->radius * scalar_t(2);
+
+						// Independently update spin component
+						{
+							scalar_t alpha = SpotR * ball->radius * Gravity / diameter;
+							alpha *= dt;
+							if (abs(ball->angularVelocity.z) < alpha) {
+								ball->angularVelocity.z = scalar_t(0);
+							} else {
+								alpha *= (ball->angularVelocity.z > scalar_t(0)) ? scalar_t(-1) : scalar_t(1);
+								ball->angularVelocity.z += alpha;
+							}
+						}
+
 						// if sliding
 						if (uspeed_eff.Length() > SlideThreshSpeed) {
 							// acc caused by friction
-							fricaccel = uspeed_eff.Unit() * (-MuSlide * Gravity);
-							accel += fricaccel;
+							Vector fricaccel = uspeed_eff.Unit() * (-MuSlide * Gravity);
 
 							// angular acc caused by friction
-							fricmom = fricaccel.Cross(Vector {scalar_t(0), scalar_t(0), -ball->radius}) * ball->mass;
-							waccel = fricmom * (scalar_t(-1) / ball->massMom);
+							Vector fricmom = fricaccel.Cross(Vector {scalar_t(0), scalar_t(0), -ball->radius}) * ball->mass;
+							Vector waccel = fricmom * -ball->invMassMom;
 
 							// perform accel
 							ball->angularVelocity += waccel * dt;
-							ball->velocity += accel * dt;
-							uspeed2 = PerimeterSpeed(ball);
-							uspeed_eff2 = uspeed2 + ball->velocity;
+							ball->velocity += fricaccel * dt;
+							Vector uspeed2 = PerimeterSpeed(ball);
+							Vector uspeed_eff2 = uspeed2 + ball->velocity;
 
 							// if uspeed_eff passes 0
-							uspeed_eff_par = uspeed_eff.Dot(uspeed_eff - uspeed_eff2);
-							uspeed_eff2_par = uspeed_eff2.Dot(uspeed_eff - uspeed_eff2);
+							scalar_t uspeed_eff_par = uspeed_eff.Dot(uspeed_eff - uspeed_eff2);
+							scalar_t uspeed_eff2_par = uspeed_eff2.Dot(uspeed_eff - uspeed_eff2);
 
 							if (Vector::ZERO.NDist(uspeed_eff, uspeed_eff2) <= SlideThreshSpeed &&
 								((uspeed_eff_par > scalar_t(0) && uspeed_eff2_par < scalar_t(0)) || (uspeed_eff2_par > scalar_t(0) && uspeed_eff_par < scalar_t(0)))
@@ -729,59 +727,53 @@ namespace BilliardPhysics
 								ball->velocity = ball->angularVelocity.Cross(Vector {scalar_t(0), scalar_t(0), ball->radius});
 							}
 
-						} else {
-							// rolling forces
-							fricmom = Vector::ZERO;
-
-							// moment of rotation around ballspot
-							if (abs(Vector {scalar_t(0), scalar_t(0), scalar_t(1)}.Dot(ball->angularVelocity)) > OmegaMin) {
-								fricmom += Vector {scalar_t(0), scalar_t(0), ball->angularVelocity.z}.Unit() * (MuSlide * ball->mass * Gravity * SpotR);
+						} else { // if rolling
+							Vector waccel;
+							{
+								scalar_t roll_mom_r = MuRoll * ball->massMom / ball->mass / diameter;
+								Vector rollmom = Vector {scalar_t(0), scalar_t(0), ball->mass * Gravity * roll_mom_r}.Cross(ball->velocity.Unit());
+								waccel = rollmom * -ball->invMassMom;
 							}
+							waccel *= dt;
 
-							// wirkabstand von rollwid.-kraft
-							// What does the above comment means ??
-							roll_mom_r = MuRoll * ball->massMom / ball->mass / (ball->radius * scalar_t(2));
-							rollmom = Vector {scalar_t(0), scalar_t(0), ball->mass * Gravity * roll_mom_r}.Cross(ball->velocity.Unit());
+							if (abs(ball->angularVelocity.x) - abs(waccel.x) < scalar_t(0)) {
+								waccel.x = -ball->angularVelocity.x;
+							}
+							if (abs(ball->angularVelocity.y) - abs(waccel.y) < scalar_t(0)) {
+								waccel.y = -ball->angularVelocity.y;
+							}
+							ball->angularVelocity += waccel;
 
-							totmom = fricmom + rollmom;
-							waccel = totmom * (scalar_t(-1) / ball->massMom);
-
-							ball->angularVelocity += waccel * dt;
-
-							// align v with w to assure rolling
+							// align velocity with angularVelocity to assure rolling
 							ball->velocity = ball->angularVelocity.Cross(Vector {scalar_t(0), scalar_t(0), ball->radius});
 						}
-
-						if (ball->angularVelocity.Length() < OmegaMin && ball->velocity.Length() < SlideThreshSpeed) {
-							ball->velocity = Vector::ZERO;
-							ball->angularVelocity = Vector::ZERO;
-						}
-					}
-
-					// Snap the ball to the table plane
-					dist = (Gravity * dt) * ball->radius;
-					if (abs(ground) < dist && abs(ball->velocity.z) <= (Gravity * dt)) {
-						ball->position.z = ball->radius;
-						ball->velocity.z = scalar_t(0);
-						ground = scalar_t(0);
 					}
 
 					// Ball collided with the table plane
-					if (ground < scalar_t(0) && ball->velocity.z < scalar_t(0)) {
+					if (ground < scalar_t(0)) {
+						BallInteraction(ball);
+
+						// If the z velocity doesn't have enough force to move the ball upwards
+						// then set it to zero.
+						scalar_t fn = (ball->mass / scalar_t(2)) * (ball->velocity.z * ball->velocity.z);
+						if (fn < (ball->mass * Gravity * dt)) {
+							ball->velocity.z = scalar_t(0);
+						}
+
+						// Reposition the ball to be on the table plane.
 						// IMPROVE: use better algorithm to find the exact position (not just z) the ball should be placed.
 						ball->position.z = ball->radius;
-						BallInteraction(ball);
 						ground = scalar_t(0);
 					}
 
 				} else {
 #ifndef BILLIARDPHYSICS_ADV_EDGE_COLLISION
 					// Check ball collision with the pocket edge
-					if (ground > pocket->position.z - ball->radius) {
-						dr = ball->position - pocket->position;
+					if (ground > -ball->radius) {
+						Vector dr = ball->position - pocket->position;
 						dr.z = scalar_t(0);
 
-						rs = (pocket->radius - ball->radius);
+						scalar_t rs = (pocket->radius - ball->radius);
 						rs *= rs;
 						if (dr.LengthSqr() > rs) {
 							// Get a collision point at the pocket edge
@@ -790,7 +782,7 @@ namespace BilliardPhysics
 
 							// Check if the ball is intersecting the collision point
 							if ((ball->position - dr).LengthSqr() < ball->radius * ball->radius) {
-								normal = (ball->position - dr).Unit();
+								Vector normal = (ball->position - dr).Unit();
 								ball->velocity -= ball->velocity.Proj(normal);
 								ball->position = dr + normal * ball->radius;
 							}
@@ -809,14 +801,11 @@ namespace BilliardPhysics
 				}
 
 			} else {
-				// Simpler physics for balls inside pockets
-				pocket = ball->inPocket;
-
 				// Bounce the ball inside the pocket
-				dr = ball->position - pocket->position;
+				Vector dr = ball->position - pocket->position;
 				dr.z = scalar_t(0);
 
-				rs = (pocket->radius - ball->radius);
+				scalar_t rs = (pocket->radius - ball->radius);
 				rs *= rs;
 
 				if (dr.LengthSqr() > rs) {
@@ -831,8 +820,9 @@ namespace BilliardPhysics
 				}
 
 				// Clamp balls inside the pocket
-				if (ball->position.z < -pocket->depth) {
-					ball->position.z = -pocket->depth;
+				scalar_t minz = -pocket->depth + ball->radius;
+				if (ball->position.z < minz) {
+					ball->position.z = minz;
 					ball->velocity = Vector::ZERO;
 					ball->angularVelocity = Vector::ZERO;
 					ball->enabled = false;
@@ -840,22 +830,9 @@ namespace BilliardPhysics
 				}
 			}
 
-			// GRAVITY
-			{
-				// Air resistance
-				dist = ball->velocity.Length();
-				if (dist != scalar_t(0)) {
-					scalar_t dv = dist * AirResistance;
-					if (dv > dist) {
-						ball->velocity = Vector::ZERO;
-					} else {
-						ball->velocity -= ball->velocity * (dv / dist);
-					}
-				}
-
-				if (ground != scalar_t(0) || ball->IsPocketed() || pocket != nullptr) {
-					ball->velocity.z += -Gravity * dt;
-				}
+			// Gravity
+			if (ground != scalar_t(0) || pocket != nullptr) {
+				ball->velocity.z += -Gravity * dt;
 			}
 
 			// Correct intersecting balls

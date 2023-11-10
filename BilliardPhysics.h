@@ -123,6 +123,9 @@ namespace BilliardPhysics
 		// Mass [kg*m^2]
 		scalar_t massMom;
 
+		scalar_t invMass;
+		scalar_t invMassMom;
+
 		Vector position;
 		Vector velocity;
 		// Rotation speed and axe [rad./s] in table coords
@@ -192,8 +195,9 @@ namespace BilliardPhysics
 		scalar_t SlideThreshSpeed;
 		// 3mm radius der auflageflaeche - not used for rollmom (only rotational-friction around spot)
 		scalar_t SpotR;
-		scalar_t OmegaMin;
-		scalar_t AirResistance;
+
+		//scalar_t OmegaMin;
+		//scalar_t AirResistance;
 
 		// The distance used to keep balls from touching each other.
 		// Very small value.

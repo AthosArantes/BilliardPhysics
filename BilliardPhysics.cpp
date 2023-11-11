@@ -351,7 +351,7 @@ namespace BilliardPhysics
 	void Engine::MoveBalls(scalar_t dt)
 	{
 		for (Ball* ball : balls) {
-			if (!ball->enabled) {
+			if (!ball->enabled || (ball->velocity.LengthSqr() + ball->angularVelocity.LengthSqr()) == scalar_t(0)) {
 				continue;
 			}
 
@@ -380,7 +380,7 @@ namespace BilliardPhysics
 		colliders.clear();
 
 		// Check cushion collisions
-		for (Collider* collider : fieldColliders) {
+		for (const Collider* collider : fieldColliders) {
 			if (collider->bbox.Intersects(ball->bbox)) {
 				colliders.push_back(collider);
 			}
@@ -390,7 +390,7 @@ namespace BilliardPhysics
 
 		// Balls in air check additional collisions
 		if (ground != scalar_t(0) || ball->velocity.z != scalar_t(0)) {
-			for (Collider* collider : envColliders) {
+			for (const Collider* collider : envColliders) {
 				if (collider->bbox.Intersects(ball->bbox)) {
 					colliders.push_back(collider);
 				}
@@ -422,7 +422,7 @@ namespace BilliardPhysics
 			}
 		}
 
-		const Collider::Property* prop = collider ? &collider->property : &fieldProperty;
+		const Collider::Property* prop = (collider && collider->property) ? collider->property : &fieldProperty;
 		Vector vn = ball->velocity.Proj(hit_normal);
 		Vector vp = ball->velocity - vn;
 

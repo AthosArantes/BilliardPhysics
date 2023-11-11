@@ -72,7 +72,7 @@ namespace BilliardPhysics
 		// Collider shapes.
 		std::vector<Shape> shapes;
 		// Physics properties of the shapes.
-		Property property;
+		const Property* property;
 
 		// Bounding box of all collider shapes.
 		BoundingBox bbox;
@@ -179,7 +179,7 @@ namespace BilliardPhysics
 
 	private:
 		// Collected colliders to test against a ball.
-		std::vector<Collider*> colliders;
+		std::vector<const Collider*> colliders;
 
 	protected:
 		// m/s^2
@@ -210,10 +210,10 @@ namespace BilliardPhysics
 
 		// Colliders that are always checked.
 		// Usually the cushions.
-		std::vector<Collider*> fieldColliders;
+		std::vector<const Collider*> fieldColliders;
 		// Colliders that are checked when the ball is in air.
 		// Usually table borders, pocket borders, etc.
-		std::vector<Collider*> envColliders;
+		std::vector<const Collider*> envColliders;
 
 		// Physics properties for the table plane.
 		Collider::Property fieldProperty;

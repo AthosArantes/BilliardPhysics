@@ -129,7 +129,7 @@ namespace BilliardPhysics
 		SlideThreshSpeed = scalar_t(5) / scalar_t(1000);
 		SpotR = sqrt(scalar_t(5));
 
-		OmegaMin = scalar_t(1) / scalar_t(10);
+		//OmegaMin = scalar_t(1) / scalar_t(10);
 		//AirResistance = scalar_t(1) / scalar_t(1000);
 
 		ContactThreshold = scalar_t_epsilon();
@@ -687,20 +687,6 @@ namespace BilliardPhysics
 
 					// only if ball not flying do sliding/rolling
 					if (ground == scalar_t(0)) {
-						scalar_t diameter = ball->radius * scalar_t(2);
-
-						// Independently update spin component
-						{
-							scalar_t alpha = SpotR * ball->radius * Gravity / diameter;
-							alpha *= dt;
-							if (abs(ball->angularVelocity.z) < alpha) {
-								ball->angularVelocity.z = scalar_t(0);
-							} else {
-								alpha *= (ball->angularVelocity.z > scalar_t(0)) ? scalar_t(-1) : scalar_t(1);
-								ball->angularVelocity.z += alpha;
-							}
-						}
-
 						// if sliding
 						if (uspeed_eff.Length() > SlideThreshSpeed) {
 							// acc caused by friction
@@ -728,19 +714,36 @@ namespace BilliardPhysics
 							}
 
 						} else { // if rolling
+							scalar_t diameter = ball->radius * scalar_t(2);
+
 							Vector waccel;
 							{
 								scalar_t roll_mom_r = MuRoll * ball->massMom / ball->mass / diameter;
 								Vector rollmom = Vector {scalar_t(0), scalar_t(0), ball->mass * Gravity * roll_mom_r}.Cross(ball->velocity.Unit());
 								waccel = rollmom * -ball->invMassMom;
 							}
+
+							scalar_t wls = ball->angularVelocity.LengthSqr();
+							scalar_t vls = ball->velocity.LengthSqr();
+
+							// Independently update spin component
+							{
+								scalar_t alpha = SpotR * ball->radius * Gravity / diameter;
+								alpha *= dt;
+								if (abs(ball->angularVelocity.z) < alpha) {
+									ball->angularVelocity.z = scalar_t(0);
+								} else {
+									ball->angularVelocity.z += (ball->angularVelocity.z > scalar_t(0)) ? -alpha : alpha;
+								}
+							}
+
 							ball->angularVelocity += waccel * dt;
 
 							// align velocity with angularVelocity to assure rolling
 							ball->velocity = ball->angularVelocity.Cross(Vector {scalar_t(0), scalar_t(0), ball->radius});
 
 							// Check for low velocities
-							if (ball->angularVelocity.LengthSqr() < (OmegaMin * OmegaMin) && ball->velocity.LengthSqr() < (SlideThreshSpeed * SlideThreshSpeed)) {
+							if (ball->angularVelocity.LengthSqr() > wls && ball->velocity.LengthSqr() > vls) {
 								ball->velocity = Vector::ZERO;
 								ball->angularVelocity = Vector::ZERO;
 							}
@@ -751,7 +754,7 @@ namespace BilliardPhysics
 					if (ground < scalar_t(0)) {
 						BallInteraction(ball);
 
-						if (ball->velocity.z < OmegaMin) {
+						if (ball->velocity.z < Gravity * dt * scalar_t(2)) {
 							ball->velocity.z = scalar_t(0);
 						}
 

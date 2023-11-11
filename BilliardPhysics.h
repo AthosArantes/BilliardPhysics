@@ -198,8 +198,7 @@ namespace BilliardPhysics
 
 		// Value used to determine if a ball is stationary or not.
 		// Needs to be manually tweaked.
-		// The default value assumes a simulation of 120fps (timestep of 8.33ms)
-		scalar_t OmegaMin;
+		//scalar_t OmegaMin;
 		//scalar_t AirResistance;
 
 		// The distance used to keep balls from touching each other.

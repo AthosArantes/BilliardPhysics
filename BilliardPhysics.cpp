@@ -129,7 +129,7 @@ namespace BilliardPhysics
 		SlideThreshSpeed = scalar_t(5) / scalar_t(1000);
 		SpotR = sqrt(scalar_t(5));
 
-		//OmegaMin = SlideThreshSpeed / SpotR;
+		OmegaMin = scalar_t(1) / scalar_t(10);
 		//AirResistance = scalar_t(1) / scalar_t(1000);
 
 		ContactThreshold = scalar_t_epsilon();
@@ -734,18 +734,16 @@ namespace BilliardPhysics
 								Vector rollmom = Vector {scalar_t(0), scalar_t(0), ball->mass * Gravity * roll_mom_r}.Cross(ball->velocity.Unit());
 								waccel = rollmom * -ball->invMassMom;
 							}
-							waccel *= dt;
-
-							if (abs(ball->angularVelocity.x) - abs(waccel.x) < scalar_t(0)) {
-								waccel.x = -ball->angularVelocity.x;
-							}
-							if (abs(ball->angularVelocity.y) - abs(waccel.y) < scalar_t(0)) {
-								waccel.y = -ball->angularVelocity.y;
-							}
-							ball->angularVelocity += waccel;
+							ball->angularVelocity += waccel * dt;
 
 							// align velocity with angularVelocity to assure rolling
 							ball->velocity = ball->angularVelocity.Cross(Vector {scalar_t(0), scalar_t(0), ball->radius});
+
+							// Check for low velocities
+							if (ball->angularVelocity.LengthSqr() < (OmegaMin * OmegaMin) && ball->velocity.LengthSqr() < (SlideThreshSpeed * SlideThreshSpeed)) {
+								ball->velocity = Vector::ZERO;
+								ball->angularVelocity = Vector::ZERO;
+							}
 						}
 					}
 
@@ -753,10 +751,7 @@ namespace BilliardPhysics
 					if (ground < scalar_t(0)) {
 						BallInteraction(ball);
 
-						// If the z velocity doesn't have enough force to move the ball upwards
-						// then set it to zero.
-						scalar_t fn = (ball->mass / scalar_t(2)) * (ball->velocity.z * ball->velocity.z);
-						if (fn < (ball->mass * Gravity * dt)) {
+						if (ball->velocity.z < OmegaMin) {
 							ball->velocity.z = scalar_t(0);
 						}
 

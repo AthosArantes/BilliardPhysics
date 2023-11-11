@@ -193,10 +193,13 @@ namespace BilliardPhysics
 
 		// cm/s
 		scalar_t SlideThreshSpeed;
-		// 3mm radius der auflageflaeche - not used for rollmom (only rotational-friction around spot)
+		// Ball spin deceleration rate
 		scalar_t SpotR;
 
-		//scalar_t OmegaMin;
+		// Value used to determine if a ball is stationary or not.
+		// Needs to be manually tweaked.
+		// The default value assumes a simulation of 120fps (timestep of 8.33ms)
+		scalar_t OmegaMin;
 		//scalar_t AirResistance;
 
 		// The distance used to keep balls from touching each other.

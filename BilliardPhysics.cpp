@@ -27,7 +27,6 @@
 #include "BilliardPhysics.h"
 
 #define BILLIARDPHYSICS_ADV_EDGE_COLLISION
-//#define BILLIARDPHYSICS_CYLINDER_EDGE_COLLISION
 
 namespace BilliardPhysics
 {
@@ -55,7 +54,7 @@ namespace BilliardPhysics
 	{
 		radius = radius_;
 		mass = mass_;
-		massMom = scalar_t(2) * mass * radius * radius / scalar_t(3);
+		massMom = scalar_t(2) * mass * radius * radius / scalar_t(5);
 		invMass = mass > scalar_t(0) ? scalar_t(1) / mass : scalar_t(0);
 		invMassMom = massMom > scalar_t(0) ? scalar_t(1) / massMom : scalar_t(0);
 	}
@@ -271,24 +270,6 @@ namespace BilliardPhysics
 		return (t1 < t2) ? t1 : t2;
 	}
 
-#ifdef BILLIARDPHYSICS_CYLINDER_EDGE_COLLISION
-	static scalar_t CollisionTime(const Ball* ball, const Collider::Shape::Point* point)
-	{
-		scalar_t vls = ball->velocity.LengthSqr();
-		Vector r = ball->position - point->position;
-		scalar_t ph = ball->velocity.Dot(r) / vls;
-		scalar_t q = (r.LengthSqr() - (ball->radius * ball->radius)) / vls;
-
-		if (ph * ph > q) {
-			scalar_t t1 = -ph + sqrt(ph * ph - q);
-			scalar_t t2 = -ph - sqrt(ph * ph - q);
-			return (t1 < t2) ? t1 : t2;
-		}
-
-		return SQRTM1;
-	}
-#endif
-
 	scalar_t Engine::CalcCollisionTime(const Ball* ball, const Collider::Shape* shape) const
 	{
 		constexpr scalar_t inf = scalar_t_infinity();
@@ -379,17 +360,6 @@ namespace BilliardPhysics
 				} else {
 					rval = SQRTM1;
 				}
-
-#ifdef BILLIARDPHYSICS_CYLINDER_EDGE_COLLISION
-				Collider::Shape::Point point;
-				point.position = dr.Unit() * cylinder.radius;
-				point.position.z = cylinder.position.z + cylinder.height;
-
-				scalar_t pv = CollisionTime(ball, &point);
-				if (pv > rval && ball->position.z > point.position.z) {
-					rval = pv;
-				}
-#endif
 
 				break;
 			}
@@ -487,20 +457,8 @@ namespace BilliardPhysics
 			{
 				const Collider::Shape::Cylinder& cylinder = shape->data.cylinder;
 				Vector dr = ball->position - cylinder.position;
-#ifdef BILLIARDPHYSICS_CYLINDER_EDGE_COLLISION
-				if (dr.z > cylinder.height) {
-					dr.z = scalar_t(0);
-					Vector r = dr.Unit() * cylinder.radius;
-					r.z = cylinder.position.z + cylinder.height;
-					hit_normal = (ball->position - r).Unit();
-				} else {
-					dr.z = scalar_t(0);
-					hit_normal = dr.Unit();
-				}
-#else
 				dr.z = scalar_t(0);
 				hit_normal = dr.Unit();
-#endif
 				break;
 			}
 		}

@@ -36,18 +36,46 @@ namespace BilliardPhysics
 	public:
 		struct Shape
 		{
+			struct Point
+			{
+				Vector position;
+			};
+			struct Line
+			{
+				Vector position[2];
+			};
+			struct Triangle
+			{
+				Vector position[3];
+				Vector normal;
+			};
+			struct Cylinder
+			{
+				Vector position;
+				scalar_t height;
+				scalar_t radius;
+			};
+
 			enum class Type
 			{
 				Point,
 				Line,
 				Triangle,
+				Cylinder
 			};
-
 			Type type;
-			Vector r1; // pos (Point, Line, Triangle)
-			Vector r2; // pos (Line, Triangle)
-			Vector r3; // pos (Triangle)
-			Vector normal;
+
+			union Data
+			{
+				Point point;
+				Line line;
+				Triangle triangle;
+				Cylinder cylinder;
+			};
+			Data data;
+
+			// Updated by Collider::Update()
+			BoundingBox bbox;
 		};
 
 		struct Property
@@ -147,21 +175,20 @@ namespace BilliardPhysics
 		Pocket* GetPocketBallInside(const Ball* ball) const;
 
 		bool IsBallInColliderRange(const Ball* ball, const Collider::Shape* shape) const;
-		scalar_t BallDistance(const Ball* ball, const Collider::Shape* shape) const;
 
 		// Returns true if collision shape and ball strobe away from each other, false else (at time dt)
 		bool BallCollided(const Ball* ball, const Collider::Shape* shape, scalar_t dt) const;
 		// Returns true if balls strobe away from each other, false else (at time dt)
 		bool BallCollided(const Ball* b1, const Ball* b2, scalar_t dt) const;
 
-		Vector PerimeterSpeed(const Ball* ball) const;
-		Vector PerimeterSpeedNormal(const Ball* ball, const Vector& normal) const;
-
 		scalar_t CalcCollisionTime(const Ball* b1, const Ball* b2) const;
 		scalar_t CalcCollisionTime(const Ball* ball, const Collider::Shape* shape) const;
 
 		void MoveBalls(scalar_t dt);
 		void CollectColliders(const Ball* ball);
+
+		Vector PerimeterSpeed(const Ball* ball) const;
+		Vector PerimeterSpeedNormal(const Ball* ball, const Vector& normal) const;
 
 		// Ball interaction with a shape collider
 		void BallInteraction(Ball* ball, const Collider::Shape* shape, const Collider* collider);

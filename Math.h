@@ -43,12 +43,12 @@ namespace BilliardPhysics
 		return std::numeric_limits<scalar_t>::epsilon();
 	}
 
-	inline constexpr scalar_t scalar_t_max_value() noexcept
+	inline constexpr scalar_t scalar_t_max() noexcept
 	{
 		return std::numeric_limits<scalar_t>::max();
 	}
 
-	inline constexpr scalar_t scalar_t_min_value() noexcept
+	inline constexpr scalar_t scalar_t_min() noexcept
 	{
 		return std::numeric_limits<scalar_t>::min();
 	}
@@ -171,8 +171,24 @@ namespace BilliardPhysics
 	// ==========================================================================================
 	struct BoundingBox
 	{
+		BoundingBox() noexcept :
+			min(Vector {scalar_t_max(), scalar_t_max(), scalar_t_max()}),
+			max(Vector {scalar_t_min(), scalar_t_min(), scalar_t_min()})
+		{
+		}
+		BoundingBox(const BoundingBox& bbox) noexcept :
+			min(bbox.min),
+			max(bbox.max)
+		{
+		}
+		BoundingBox(const Vector& min, const Vector& max) noexcept :
+			min(min),
+			max(max)
+		{
+		}
+
 		// Test if another bounding box intersects.
-		bool Intersects(const BoundingBox& rhs) const
+		bool Intersects(const BoundingBox& rhs) const noexcept
 		{
 			if (rhs.max.x < min.x || rhs.min.x > max.x || rhs.max.y < min.y || rhs.min.y > max.y || rhs.max.z < min.z || rhs.min.z > max.z) {
 				return false;
@@ -181,14 +197,14 @@ namespace BilliardPhysics
 		}
 
 		// Merge another bounding box.
-		void Merge(const BoundingBox& box)
+		void Merge(const BoundingBox& box) noexcept
 		{
-			if (box.min.x < min.x) { min.x = box.min.x; }
-			if (box.min.y < min.y) { min.y = box.min.y; }
-			if (box.min.z < min.z) { min.z = box.min.z; }
-			if (box.max.x > max.x) { max.x = box.max.x; }
-			if (box.max.y > max.y) { max.y = box.max.y; }
-			if (box.max.z > max.z) { max.z = box.max.z; }
+			if (box.min.x < min.x || min.x == scalar_t_max()) { min.x = box.min.x; }
+			if (box.min.y < min.y || min.y == scalar_t_max()) { min.y = box.min.y; }
+			if (box.min.z < min.z || min.z == scalar_t_max()) { min.z = box.min.z; }
+			if (box.max.x > max.x || max.x == scalar_t_min()) { max.x = box.max.x; }
+			if (box.max.y > max.y || max.y == scalar_t_min()) { max.y = box.max.y; }
+			if (box.max.z > max.z || max.z == scalar_t_min()) { max.z = box.max.z; }
 		}
 
 		Vector min;

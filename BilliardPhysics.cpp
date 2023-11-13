@@ -27,6 +27,7 @@
 #include "BilliardPhysics.h"
 
 #define BILLIARDPHYSICS_ADV_EDGE_COLLISION
+//#define BILLIARDPHYSICS_CYLINDER_EDGE_COLLISION
 
 namespace BilliardPhysics
 {
@@ -83,38 +84,52 @@ namespace BilliardPhysics
 
 	void Collider::Update()
 	{
-		bbox = {
-			Vector {scalar_t_max_value(), scalar_t_max_value(), scalar_t_max_value()},
-			Vector {scalar_t_min_value(), scalar_t_min_value(), scalar_t_min_value()}
-		};
+		bbox = BoundingBox {};
 
 		for (Shape& shape : shapes) {
 			switch (shape.type) {
 				case Shape::Type::Triangle:
-					bbox.min.x = std::min({bbox.min.x, shape.r1.x, shape.r2.x, shape.r3.x});
-					bbox.min.y = std::min({bbox.min.y, shape.r1.y, shape.r2.y, shape.r3.y});
-					bbox.min.z = std::min({bbox.min.z, shape.r1.z, shape.r2.z, shape.r3.z});
-					bbox.max.x = std::max({bbox.max.x, shape.r1.x, shape.r2.x, shape.r3.x});
-					bbox.max.y = std::max({bbox.max.y, shape.r1.y, shape.r2.y, shape.r3.y});
-					bbox.max.z = std::max({bbox.max.z, shape.r1.z, shape.r2.z, shape.r3.z});
+				{
+					Vector(&v)[3] = shape.data.triangle.position;
+					for (int i = 0; i < 3; ++i) {
+						shape.bbox.Merge(BoundingBox {
+							v[i],
+							v[i]
+						});
+					}
 					break;
+				}
 				case Shape::Type::Line:
-					bbox.min.x = std::min({bbox.min.x, shape.r1.x, shape.r2.x});
-					bbox.min.y = std::min({bbox.min.y, shape.r1.y, shape.r2.y});
-					bbox.min.z = std::min({bbox.min.z, shape.r1.z, shape.r2.z});
-					bbox.max.x = std::max({bbox.max.x, shape.r1.x, shape.r2.x});
-					bbox.max.y = std::max({bbox.max.y, shape.r1.y, shape.r2.y});
-					bbox.max.z = std::max({bbox.max.z, shape.r1.z, shape.r2.z});
+				{
+					Vector(&v)[2] = shape.data.line.position;
+					for (int i = 0; i < 2; ++i) {
+						shape.bbox.Merge(BoundingBox {
+							v[i],
+							v[i]
+						});
+					}
 					break;
+				}
 				case Shape::Type::Point:
-					bbox.min.x = std::min(bbox.min.x, shape.r1.x);
-					bbox.min.y = std::min(bbox.min.y, shape.r1.y);
-					bbox.min.z = std::min(bbox.min.z, shape.r1.z);
-					bbox.max.x = std::max(bbox.max.x, shape.r1.x);
-					bbox.max.y = std::max(bbox.max.y, shape.r1.y);
-					bbox.max.z = std::max(bbox.max.z, shape.r1.z);
+				{
+					Vector& v = shape.data.point.position;
+					shape.bbox = BoundingBox {v, v};
 					break;
+				}
+				case Shape::Type::Cylinder:
+				{
+					Vector& v = shape.data.cylinder.position;
+					scalar_t r = shape.data.cylinder.radius;
+					scalar_t h = shape.data.cylinder.height;
+					shape.bbox = BoundingBox {
+						Vector {v.x - r, v.y - r, v.z},
+						Vector {v.x + r, v.y + r, v.z + h}
+					};
+					break;
+				}
 			}
+
+			bbox.Merge(shape.bbox);
 		}
 	}
 
@@ -159,53 +174,32 @@ namespace BilliardPhysics
 		switch (shape->type) {
 			case Collider::Shape::Type::Triangle:
 			{
-				Vector dr1 = shape->r2 - shape->r1;
-				Vector dr2 = shape->r3 - shape->r2;
-				Vector dr3 = shape->r1 - shape->r3;
+				const Collider::Shape::Triangle& triangle = shape->data.triangle;
+				const Vector(&v)[3] = triangle.position;
+
+				Vector dr1 = v[1] - v[0];
+				Vector dr2 = v[2] - v[1];
+				Vector dr3 = v[0] - v[2];
 				Vector n = dr1.Cross(dr2).Unit();
 				return (
-					plane_dist(ball->position, shape->r1, n.Cross(dr1).Unit()) >= scalar_t(0) &&
-					plane_dist(ball->position, shape->r2, n.Cross(dr2).Unit()) >= scalar_t(0) &&
-					plane_dist(ball->position, shape->r3, n.Cross(dr3).Unit()) >= scalar_t(0)
-				);
+					plane_dist(ball->position, v[0], n.Cross(dr1).Unit()) >= scalar_t(0) &&
+					plane_dist(ball->position, v[1], n.Cross(dr2).Unit()) >= scalar_t(0) &&
+					plane_dist(ball->position, v[2], n.Cross(dr3).Unit()) >= scalar_t(0)
+					);
 			}
 			case Collider::Shape::Type::Line:
 			{
-				Vector r = ball->position - shape->r1;
-				Vector dr = shape->r2 - shape->r1;
+				const Collider::Shape::Line& line = shape->data.line;
+				const Vector(&v)[2] = line.position;
+
+				Vector r = ball->position - v[0];
+				Vector dr = v[1] - v[0];
 				scalar_t dra = dr.Length();
 				scalar_t d = r.Dot(dr) / dra;
 				return (d >= scalar_t(0) && d < dra);
 			}
-			case Collider::Shape::Type::Point:
-			{
-				return true;
-			}
 		}
 		return true;
-	}
-
-	scalar_t Engine::BallDistance(const Ball* ball, const Collider::Shape* shape) const
-	{
-		if (IsBallInColliderRange(ball, shape)) {
-			switch (shape->type) {
-				case Collider::Shape::Type::Triangle:
-				{
-					return (ball->position - shape->r1).Dot(shape->normal);
-				}
-				case Collider::Shape::Type::Line:
-				{
-					Vector r = ball->position - shape->r1;
-					Vector dr = shape->r2 - shape->r1;
-					return (r - r.Proj(dr)).Length();
-				}
-				case Collider::Shape::Type::Point:
-				{
-					return (ball->position - shape->r1).Length();
-				}
-			}
-		}
-		return scalar_t_infinity(); //old return = -1.0E20
 	}
 
 	bool Engine::BallCollided(const Ball* ball, const Collider::Shape* shape, scalar_t dt) const
@@ -213,17 +207,36 @@ namespace BilliardPhysics
 		switch (shape->type) {
 			case Collider::Shape::Type::Triangle:
 			{
-				return (ball->velocity.Dot(shape->normal) > scalar_t(0));
+				const Collider::Shape::Triangle& triangle = shape->data.triangle;
+
+				return (ball->velocity.Dot(triangle.normal) > scalar_t(0));
 			}
 			case Collider::Shape::Type::Line:
 			{
+				const Collider::Shape::Line& line = shape->data.line;
+				const Vector(&v)[2] = line.position;
+
 				Vector ballpos = ball->position + (ball->velocity * dt);
-				return (ball->velocity.Dot((ballpos - shape->r1).NComp(shape->r2 - shape->r1)) > scalar_t(0));
+				return (ball->velocity.Dot((ballpos - v[0]).NComp(v[1] - v[0])) > scalar_t(0));
 			}
 			case Collider::Shape::Type::Point:
 			{
+				const Collider::Shape::Point& point = shape->data.point;
+
 				Vector ballpos = ball->position + (ball->velocity * dt);
-				return ((ballpos - shape->r1).Dot(ball->velocity) > scalar_t(0));
+				return ((ballpos - point.position).Dot(ball->velocity) > scalar_t(0));
+			}
+			case Collider::Shape::Type::Cylinder:
+			{
+				const Collider::Shape::Cylinder& cylinder = shape->data.cylinder;
+
+				Vector ballpos = ball->position + (ball->velocity * dt);
+				Vector n = ballpos - cylinder.position;
+				n.z = scalar_t(0);
+				Vector r = n.Unit() * cylinder.radius;
+				r.z = ballpos.z;
+
+				return ((ballpos - r).Dot(ball->velocity) > scalar_t(0));
 			}
 		}
 		return true;
@@ -234,16 +247,6 @@ namespace BilliardPhysics
 		Vector b1pos = b1->position + (b1->velocity * dt);
 		Vector b2pos = b2->position + (b2->velocity * dt);
 		return (b2pos - b1pos).Dot(b2->velocity - b1->velocity) > scalar_t(0);
-	}
-
-	Vector Engine::PerimeterSpeed(const Ball* ball) const
-	{
-		return ball->angularVelocity.Cross(Vector {scalar_t(0), scalar_t(0), -ball->radius});
-	}
-
-	Vector Engine::PerimeterSpeedNormal(const Ball* ball, const Vector& normal) const
-	{
-		return ball->angularVelocity.Cross(normal * -ball->radius);
 	}
 
 	scalar_t Engine::CalcCollisionTime(const Ball* b1, const Ball* b2) const
@@ -268,81 +271,128 @@ namespace BilliardPhysics
 		return (t1 < t2) ? t1 : t2;
 	}
 
+#ifdef BILLIARDPHYSICS_CYLINDER_EDGE_COLLISION
+	static scalar_t CollisionTime(const Ball* ball, const Collider::Shape::Point* point)
+	{
+		scalar_t vls = ball->velocity.LengthSqr();
+		Vector r = ball->position - point->position;
+		scalar_t ph = ball->velocity.Dot(r) / vls;
+		scalar_t q = (r.LengthSqr() - (ball->radius * ball->radius)) / vls;
+
+		if (ph * ph > q) {
+			scalar_t t1 = -ph + sqrt(ph * ph - q);
+			scalar_t t2 = -ph - sqrt(ph * ph - q);
+			return (t1 < t2) ? t1 : t2;
+		}
+
+		return SQRTM1;
+	}
+#endif
+
 	scalar_t Engine::CalcCollisionTime(const Ball* ball, const Collider::Shape* shape) const
 	{
 		constexpr scalar_t inf = scalar_t_infinity();
+		if (ball->velocity.LengthSqr() == scalar_t(0) || !ball->bbox.Intersects(shape->bbox) || !IsBallInColliderRange(ball, shape)) {
+			return inf;
+		}
+
 		scalar_t rval {};
 
 		switch (shape->type) {
 			case Collider::Shape::Type::Triangle:
 			{
-				Vector dr = ball->position - shape->r1;
-				scalar_t h = dr.Dot(shape->normal) - ball->radius;
-				scalar_t vn = ball->velocity.Dot(shape->normal);
-				if (vn == scalar_t(0)) {
-					rval = inf;
-					break;
-				}
-				rval = -h / vn;
+				const Collider::Shape::Triangle& triangle = shape->data.triangle;
+
+				Vector dr = ball->position - triangle.position[0];
+				scalar_t h = dr.Dot(triangle.normal) - ball->radius;
+				scalar_t vn = ball->velocity.Dot(triangle.normal);
+
+				rval = (vn == scalar_t(0)) ? inf : -h / vn;
 				break;
 			}
 			case Collider::Shape::Type::Line:
 			{
+				const Collider::Shape::Line& line = shape->data.line;
+
 				// del all comps par to cylinder
-				Vector dr = shape->r2 - shape->r1;
-				Vector r = ball->position - shape->r1;
+				Vector dr = line.position[1] - line.position[0];
+				Vector r = ball->position - line.position[0];
 				r -= r.Proj(dr);
 				Vector v = ball->velocity;
 				v -= v.Proj(dr);
 
 				scalar_t vls = v.LengthSqr();
-				if (vls == scalar_t(0)) {
-					rval = inf;
-					break;
-				}
-
 				scalar_t ph = v.Dot(r) / vls;
 				scalar_t q = (r.LengthSqr() - (ball->radius * ball->radius)) / vls;
 
-				scalar_t t1, t2;
 				if (ph * ph > q) {
-					t1 = -ph + sqrt(ph * ph - q);
-					t2 = -ph - sqrt(ph * ph - q);
+					scalar_t t1 = -ph + sqrt(ph * ph - q);
+					scalar_t t2 = -ph - sqrt(ph * ph - q);
+
+					// solve |r+vt|=d/2
+					rval = (t1 < t2) ? t1 : t2;
 				} else {
-					t1 = SQRTM1;
-					t2 = SQRTM1;
+					rval = SQRTM1;
 				}
-				// solve |r+vt|=d/2
-				rval = (t1 < t2) ? t1 : t2;
+
 				break;
 			}
 			case Collider::Shape::Type::Point:
 			{
-				scalar_t vls = ball->velocity.LengthSqr();
-				if (vls == scalar_t(0)) {
-					rval = inf;
-					break;
-				}
+				const Collider::Shape::Point& point = shape->data.point;
 
-				Vector r = ball->position - shape->r1;
+				scalar_t vls = ball->velocity.LengthSqr();
+				Vector r = ball->position - point.position;
 				scalar_t ph = ball->velocity.Dot(r) / vls;
 				scalar_t q = (r.LengthSqr() - (ball->radius * ball->radius)) / vls;
+
+				if (ph * ph > q) {
+					scalar_t t1 = -ph + sqrt(ph * ph - q);
+					scalar_t t2 = -ph - sqrt(ph * ph - q);
+					rval = (t1 < t2) ? t1 : t2;
+				} else {
+					rval = SQRTM1;
+				}
+
+				break;
+			}
+			case Collider::Shape::Type::Cylinder:
+			{
+				const Collider::Shape::Cylinder& cylinder = shape->data.cylinder;
+
+				scalar_t vls = ball->velocity.LengthSqr();
+
+				Vector dr = ball->position - cylinder.position;
+				dr.z = scalar_t(0);
+
+				scalar_t rs = ball->radius + cylinder.radius;
+				rs *= rs;
+
+				scalar_t ph = (ball->velocity.Dot(dr)) / vls;
+				scalar_t q = (dr.LengthSqr() - rs) / vls;
 
 				scalar_t t1, t2;
 				if (ph * ph > q) {
 					t1 = -ph + sqrt(ph * ph - q);
 					t2 = -ph - sqrt(ph * ph - q);
+					rval = (t1 < t2) ? t1 : t2;
 				} else {
-					t1 = SQRTM1;
-					t2 = SQRTM1;
+					rval = SQRTM1;
 				}
-				rval = (t1 < t2) ? t1 : t2;
+
+#ifdef BILLIARDPHYSICS_CYLINDER_EDGE_COLLISION
+				Collider::Shape::Point point;
+				point.position = dr.Unit() * cylinder.radius;
+				point.position.z = cylinder.position.z + cylinder.height;
+
+				scalar_t pv = CollisionTime(ball, &point);
+				if (pv > rval && ball->position.z > point.position.z) {
+					rval = pv;
+				}
+#endif
+
 				break;
 			}
-		}
-
-		if (!IsBallInColliderRange(ball, shape)) {
-			rval = inf;
 		}
 
 		return rval;
@@ -398,6 +448,16 @@ namespace BilliardPhysics
 		}
 	}
 
+	Vector Engine::PerimeterSpeed(const Ball* ball) const
+	{
+		return ball->angularVelocity.Cross(Vector {scalar_t(0), scalar_t(0), -ball->radius});
+	}
+
+	Vector Engine::PerimeterSpeedNormal(const Ball* ball, const Vector& normal) const
+	{
+		return ball->angularVelocity.Cross(normal * -ball->radius);
+	}
+
 	void Engine::BallInteraction(Ball* ball, const Collider::Shape* shape, const Collider* collider)
 	{
 		Vector hit_normal;
@@ -405,19 +465,42 @@ namespace BilliardPhysics
 		switch (shape->type) {
 			case Collider::Shape::Type::Triangle:
 			{
-				hit_normal = shape->normal;
+				const Collider::Shape::Triangle& triangle = shape->data.triangle;
+				hit_normal = triangle.normal;
 				break;
 			}
 			case Collider::Shape::Type::Line:
 			{
-				Vector dr = shape->r2 - shape->r1;
-				hit_normal = ball->position - shape->r1;
+				const Collider::Shape::Line& line = shape->data.line;
+				Vector dr = line.position[1] - line.position[0];
+				hit_normal = ball->position - line.position[0];
 				hit_normal = (hit_normal - hit_normal.Proj(dr)).Unit();
 				break;
 			}
 			case Collider::Shape::Type::Point:
 			{
-				hit_normal = (ball->position - shape->r1).Unit();
+				const Collider::Shape::Point& point = shape->data.point;
+				hit_normal = (ball->position - point.position).Unit();
+				break;
+			}
+			case Collider::Shape::Type::Cylinder:
+			{
+				const Collider::Shape::Cylinder& cylinder = shape->data.cylinder;
+				Vector dr = ball->position - cylinder.position;
+#ifdef BILLIARDPHYSICS_CYLINDER_EDGE_COLLISION
+				if (dr.z > cylinder.height) {
+					dr.z = scalar_t(0);
+					Vector r = dr.Unit() * cylinder.radius;
+					r.z = cylinder.position.z + cylinder.height;
+					hit_normal = (ball->position - r).Unit();
+				} else {
+					dr.z = scalar_t(0);
+					hit_normal = dr.Unit();
+				}
+#else
+				dr.z = scalar_t(0);
+				hit_normal = dr.Unit();
+#endif
 				break;
 			}
 		}
@@ -560,8 +643,8 @@ namespace BilliardPhysics
 #ifdef BILLIARDPHYSICS_ADV_EDGE_COLLISION
 		const Pocket* colPocket = nullptr;
 
-		Collider::Shape edgePoint;
-		edgePoint.type = Collider::Shape::Type::Point;
+		Collider::Shape edgeShape;
+		edgeShape.type = Collider::Shape::Type::Point;
 #endif
 
 		MoveBalls(dt);
@@ -612,11 +695,12 @@ namespace BilliardPhysics
 				dr.z = scalar_t(0);
 
 				// Get a collision point at the pocket edge
-				edgePoint.r1 = pocket->position + dr.Unit() * pocket->radius;
-				edgePoint.r1.z = pocket->position.z;
+				Collider::Shape::Point& point = edgeShape.data.point;
+				point.position = pocket->position + dr.Unit() * pocket->radius;
+				point.position.z = pocket->position.z;
 
-				dt1 = CalcCollisionTime(ball, &edgePoint);
-				if (dt1 < dtmin && dt1 > -dt && !BallCollided(ball, &edgePoint, -dt)) {
+				dt1 = CalcCollisionTime(ball, &edgeShape);
+				if (dt1 < dtmin && dt1 > -dt && !BallCollided(ball, &edgeShape, -dt)) {
 					// dont strobe apart
 					dtmin = dt1;
 					colBall = ball;
@@ -646,8 +730,8 @@ namespace BilliardPhysics
 #ifdef BILLIARDPHYSICS_ADV_EDGE_COLLISION
 		else if (colBall && colPocket) {
 			MoveBalls(dtmin);
-			BallInteraction(colBall, &edgePoint, nullptr);
-			colBall->OnCollided(&edgePoint, nullptr, -dtmin);
+			BallInteraction(colBall, &edgeShape, nullptr);
+			colBall->OnCollided(&edgeShape, nullptr, -dtmin);
 
 			StepSimulationEuler(-dtmin, depth + 1);
 		}
@@ -753,6 +837,7 @@ namespace BilliardPhysics
 					// Ball collided with the table plane
 					if (ground < scalar_t(0)) {
 						BallInteraction(ball);
+						ball->OnCollided(nullptr, nullptr, dt);
 
 						if (ball->velocity.z < Gravity * dt * scalar_t(2)) {
 							ball->velocity.z = scalar_t(0);

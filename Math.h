@@ -63,6 +63,15 @@ namespace BilliardPhysics
 	// ==========================================================================================
 	struct Vector
 	{
+		bool operator!=(const Vector& rhs) const noexcept
+		{
+			return (x != rhs.x || y != rhs.y || z != rhs.z);
+		}
+		bool operator==(const Vector& rhs) const noexcept
+		{
+			return !(x != rhs.x || y != rhs.y || z != rhs.z);
+		}
+
 		Vector operator-(const Vector& rhs) const noexcept
 		{
 			return {x - rhs.x, y - rhs.y, z - rhs.z};

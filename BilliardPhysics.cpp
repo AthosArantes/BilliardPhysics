@@ -184,7 +184,7 @@ namespace BilliardPhysics
 					plane_dist(ball->position, v[0], n.Cross(dr1).Unit()) >= scalar_t(0) &&
 					plane_dist(ball->position, v[1], n.Cross(dr2).Unit()) >= scalar_t(0) &&
 					plane_dist(ball->position, v[2], n.Cross(dr3).Unit()) >= scalar_t(0)
-					);
+				);
 			}
 			case Collider::Shape::Type::Line:
 			{
@@ -196,6 +196,11 @@ namespace BilliardPhysics
 				scalar_t dra = dr.Length();
 				scalar_t d = r.Dot(dr) / dra;
 				return (d >= scalar_t(0) && d < dra);
+			}
+			case Collider::Shape::Type::Cylinder:
+			{
+				const Collider::Shape::Cylinder& cylinder = shape->data.cylinder;
+				return (ball->position.z >= cylinder.position.z && ball->position.z <= cylinder.position.z + cylinder.height);
 			}
 		}
 		return true;
@@ -251,17 +256,17 @@ namespace BilliardPhysics
 	scalar_t Engine::CalcCollisionTime(const Ball* b1, const Ball* b2) const
 	{
 		Vector dv = b1->velocity - b2->velocity;
-		Vector dr = b1->position - b2->position;
-		scalar_t vs = dv.x * dv.x + dv.y * dv.y + dv.z * dv.z;
+		scalar_t vs = dv.LengthSqr();
 		if (vs == scalar_t(0)) {
-			return scalar_t_infinity();
+			return SQRTM1;
 		}
 
-		scalar_t rs = dr.x * dr.x + dr.y * dr.y + dr.z * dr.z;
+		Vector dr = b1->position - b2->position;
+		scalar_t rs = dr.LengthSqr();
 		scalar_t ds = b1->radius + b2->radius;
 		ds *= ds;
 
-		scalar_t p = (dv.x * dr.x + dv.y * dr.y + dv.z * dr.z) / vs;
+		scalar_t p = dv.Dot(dr) / vs;
 		scalar_t q = (rs - ds) / vs;
 		q = (p * p > q) ? sqrt(p * p - q) : SQRTM1;
 		scalar_t t1 = -p + q;
@@ -272,9 +277,8 @@ namespace BilliardPhysics
 
 	scalar_t Engine::CalcCollisionTime(const Ball* ball, const Collider::Shape* shape) const
 	{
-		constexpr scalar_t inf = scalar_t_infinity();
-		if (ball->velocity.LengthSqr() == scalar_t(0) || !ball->bbox.Intersects(shape->bbox) || !IsBallInColliderRange(ball, shape)) {
-			return inf;
+		if (!IsBallInColliderRange(ball, shape)) {
+			return SQRTM1;
 		}
 
 		scalar_t rval {};
@@ -288,7 +292,7 @@ namespace BilliardPhysics
 				scalar_t h = dr.Dot(triangle.normal) - ball->radius;
 				scalar_t vn = ball->velocity.Dot(triangle.normal);
 
-				rval = (vn == scalar_t(0)) ? inf : -h / vn;
+				rval = (vn == scalar_t(0)) ? SQRTM1 : -h / vn;
 				break;
 			}
 			case Collider::Shape::Type::Line:
@@ -371,7 +375,7 @@ namespace BilliardPhysics
 	void Engine::MoveBalls(scalar_t dt)
 	{
 		for (Ball* ball : balls) {
-			if (!ball->enabled || (ball->velocity.LengthSqr() + ball->angularVelocity.LengthSqr()) == scalar_t(0)) {
+			if (!ball->enabled) {
 				continue;
 			}
 
@@ -389,9 +393,6 @@ namespace BilliardPhysics
 				ball->position - vr,
 				ball->position + vr
 			});
-
-			// Rotate ball
-			ball->ApplyRotation(dt);
 		}
 	}
 
@@ -595,15 +596,8 @@ namespace BilliardPhysics
 
 		Ball* colBall = nullptr;
 		Ball* colBall2 = nullptr;
-		const Collider* col = nullptr;
 		const Collider::Shape* colShape = nullptr;
-
-#ifdef BILLIARDPHYSICS_ADV_EDGE_COLLISION
-		const Pocket* colPocket = nullptr;
-
-		Collider::Shape edgeShape;
-		edgeShape.type = Collider::Shape::Type::Point;
-#endif
+		const Collider* col = nullptr;
 
 		MoveBalls(dt);
 
@@ -619,12 +613,12 @@ namespace BilliardPhysics
 			for (const Collider* collider : colliders) {
 				for (const Collider::Shape& shape : collider->shapes) {
 					dt1 = CalcCollisionTime(ball, &shape);
-					if (dt1 < dtmin && dt1 > -dt && !BallCollided(ball, &shape, -dt)) {
+					if (dt1 <= dtmin && dt1 > -dt && !BallCollided(ball, &shape, -dt)) {
 						// dont strobe apart
 						dtmin = dt1;
 						colBall = ball;
-						col = collider;
 						colShape = &shape;
+						col = collider;
 					}
 				}
 			}
@@ -641,37 +635,12 @@ namespace BilliardPhysics
 					dtmin = dt1;
 					colBall = ball2;
 					colBall2 = ball;
-					col = nullptr;
+					colShape = nullptr;
 				}
 			}
-
-#ifdef BILLIARDPHYSICS_ADV_EDGE_COLLISION
-			// Check pocket edge collision
-			const Pocket* pocket = GetPocketBallInside(ball);
-			if (pocket) {
-				Vector dr = ball->position - pocket->position;
-				dr.z = scalar_t(0);
-
-				// Get a collision point at the pocket edge
-				Collider::Shape::Point& point = edgeShape.data.point;
-				point.position = pocket->position + dr.Unit() * pocket->radius;
-				point.position.z = pocket->position.z;
-
-				dt1 = CalcCollisionTime(ball, &edgeShape);
-				if (dt1 < dtmin && dt1 > -dt && !BallCollided(ball, &edgeShape, -dt)) {
-					// dont strobe apart
-					dtmin = dt1;
-					colBall = ball;
-					colBall2 = nullptr;
-					col = nullptr;
-					colPocket = pocket;
-				}
-			}
-#endif
-
 		}
 
-		if (col) {
+		if (colShape) {
 			MoveBalls(dtmin);
 			BallInteraction(colBall, colShape, col);
 			colBall->OnCollided(colShape, col, -dtmin);
@@ -685,16 +654,6 @@ namespace BilliardPhysics
 
 			StepSimulationEuler(-dtmin, depth + 1);
 		}
-#ifdef BILLIARDPHYSICS_ADV_EDGE_COLLISION
-		else if (colBall && colPocket) {
-			MoveBalls(dtmin);
-			BallInteraction(colBall, &edgeShape, nullptr);
-			colBall->OnCollided(&edgeShape, nullptr, -dtmin);
-
-			StepSimulationEuler(-dtmin, depth + 1);
-		}
-#endif
-
 	}
 
 	int Engine::StepSimulation(scalar_t dt)
@@ -711,9 +670,11 @@ namespace BilliardPhysics
 			}
 
 			// check if balls still moving
-			if (ball->velocity.LengthSqr() != scalar_t(0) || ball->angularVelocity.LengthSqr() != scalar_t(0)) {
+			if (ball->velocity + ball->angularVelocity != Vector::ZERO) {
 				++balls_moving;
 			}
+
+			ball->ApplyRotation(dt);
 
 			scalar_t ground = ball->position.z - ball->radius;
 			Pocket* pocket = ball->inPocket;
@@ -750,7 +711,7 @@ namespace BilliardPhysics
 
 							if (Vector::ZERO.NDist(uspeed_eff, uspeed_eff2) <= SlideThreshSpeed &&
 								((uspeed_eff_par > scalar_t(0) && uspeed_eff2_par < scalar_t(0)) || (uspeed_eff2_par > scalar_t(0) && uspeed_eff_par < scalar_t(0)))
-							) {
+								) {
 								// make rolling if uspeed_eff passed 0
 								ball->velocity = ball->angularVelocity.Cross(Vector {scalar_t(0), scalar_t(0), ball->radius});
 							}
@@ -808,7 +769,6 @@ namespace BilliardPhysics
 					}
 
 				} else {
-#ifndef BILLIARDPHYSICS_ADV_EDGE_COLLISION
 					// Check ball collision with the pocket edge
 					if (ground > -ball->radius) {
 						Vector dr = ball->position - pocket->position;
@@ -833,12 +793,6 @@ namespace BilliardPhysics
 						// Ball is completely inside the pocket now.
 						ball->inPocket = pocket;
 					}
-#else
-					if (ball->position.z < scalar_t(0)) {
-						// Ball is completely inside the pocket now.
-						ball->inPocket = pocket;
-					}
-#endif
 				}
 
 			} else {

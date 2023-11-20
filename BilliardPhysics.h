@@ -65,14 +65,13 @@ namespace BilliardPhysics
 			};
 			Type type;
 
-			union Data
+			union
 			{
 				Point point;
 				Line line;
 				Triangle triangle;
 				Cylinder cylinder;
 			};
-			Data data;
 
 			// Updated by Collider::Update()
 			BoundingBox bbox;

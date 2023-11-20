@@ -89,7 +89,7 @@ namespace BilliardPhysics
 			switch (shape.type) {
 				case Shape::Type::Triangle:
 				{
-					Vector(&v)[3] = shape.data.triangle.position;
+					Vector(&v)[3] = shape.triangle.position;
 					for (int i = 0; i < 3; ++i) {
 						shape.bbox.Merge(BoundingBox {
 							v[i],
@@ -100,7 +100,7 @@ namespace BilliardPhysics
 				}
 				case Shape::Type::Line:
 				{
-					Vector(&v)[2] = shape.data.line.position;
+					Vector(&v)[2] = shape.line.position;
 					for (int i = 0; i < 2; ++i) {
 						shape.bbox.Merge(BoundingBox {
 							v[i],
@@ -111,15 +111,15 @@ namespace BilliardPhysics
 				}
 				case Shape::Type::Point:
 				{
-					Vector& v = shape.data.point.position;
+					Vector& v = shape.point.position;
 					shape.bbox = BoundingBox {v, v};
 					break;
 				}
 				case Shape::Type::Cylinder:
 				{
-					Vector& v = shape.data.cylinder.position;
-					scalar_t r = shape.data.cylinder.radius;
-					scalar_t h = shape.data.cylinder.height;
+					Vector& v = shape.cylinder.position;
+					scalar_t r = shape.cylinder.radius;
+					scalar_t h = shape.cylinder.height;
 					shape.bbox = BoundingBox {
 						Vector {v.x - r, v.y - r, v.z},
 						Vector {v.x + r, v.y + r, v.z + h}
@@ -173,7 +173,7 @@ namespace BilliardPhysics
 		switch (shape->type) {
 			case Collider::Shape::Type::Triangle:
 			{
-				const Collider::Shape::Triangle& triangle = shape->data.triangle;
+				const Collider::Shape::Triangle& triangle = shape->triangle;
 				const Vector(&v)[3] = triangle.position;
 
 				Vector dr1 = v[1] - v[0];
@@ -188,7 +188,7 @@ namespace BilliardPhysics
 			}
 			case Collider::Shape::Type::Line:
 			{
-				const Collider::Shape::Line& line = shape->data.line;
+				const Collider::Shape::Line& line = shape->line;
 				const Vector(&v)[2] = line.position;
 
 				Vector r = ball->position - v[0];
@@ -199,7 +199,7 @@ namespace BilliardPhysics
 			}
 			case Collider::Shape::Type::Cylinder:
 			{
-				const Collider::Shape::Cylinder& cylinder = shape->data.cylinder;
+				const Collider::Shape::Cylinder& cylinder = shape->cylinder;
 				return (ball->position.z >= cylinder.position.z && ball->position.z <= cylinder.position.z + cylinder.height);
 			}
 		}
@@ -211,13 +211,13 @@ namespace BilliardPhysics
 		switch (shape->type) {
 			case Collider::Shape::Type::Triangle:
 			{
-				const Collider::Shape::Triangle& triangle = shape->data.triangle;
+				const Collider::Shape::Triangle& triangle = shape->triangle;
 
 				return (ball->velocity.Dot(triangle.normal) > scalar_t(0));
 			}
 			case Collider::Shape::Type::Line:
 			{
-				const Collider::Shape::Line& line = shape->data.line;
+				const Collider::Shape::Line& line = shape->line;
 				const Vector(&v)[2] = line.position;
 
 				Vector ballpos = ball->position + (ball->velocity * dt);
@@ -225,14 +225,14 @@ namespace BilliardPhysics
 			}
 			case Collider::Shape::Type::Point:
 			{
-				const Collider::Shape::Point& point = shape->data.point;
+				const Collider::Shape::Point& point = shape->point;
 
 				Vector ballpos = ball->position + (ball->velocity * dt);
 				return ((ballpos - point.position).Dot(ball->velocity) > scalar_t(0));
 			}
 			case Collider::Shape::Type::Cylinder:
 			{
-				const Collider::Shape::Cylinder& cylinder = shape->data.cylinder;
+				const Collider::Shape::Cylinder& cylinder = shape->cylinder;
 
 				Vector ballpos = ball->position + (ball->velocity * dt);
 				Vector n = ballpos - cylinder.position;
@@ -286,7 +286,7 @@ namespace BilliardPhysics
 		switch (shape->type) {
 			case Collider::Shape::Type::Triangle:
 			{
-				const Collider::Shape::Triangle& triangle = shape->data.triangle;
+				const Collider::Shape::Triangle& triangle = shape->triangle;
 
 				Vector dr = ball->position - triangle.position[0];
 				scalar_t h = dr.Dot(triangle.normal) - ball->radius;
@@ -297,7 +297,7 @@ namespace BilliardPhysics
 			}
 			case Collider::Shape::Type::Line:
 			{
-				const Collider::Shape::Line& line = shape->data.line;
+				const Collider::Shape::Line& line = shape->line;
 
 				// del all comps par to cylinder
 				Vector dr = line.position[1] - line.position[0];
@@ -324,7 +324,7 @@ namespace BilliardPhysics
 			}
 			case Collider::Shape::Type::Point:
 			{
-				const Collider::Shape::Point& point = shape->data.point;
+				const Collider::Shape::Point& point = shape->point;
 
 				scalar_t vls = ball->velocity.LengthSqr();
 				Vector r = ball->position - point.position;
@@ -343,7 +343,7 @@ namespace BilliardPhysics
 			}
 			case Collider::Shape::Type::Cylinder:
 			{
-				const Collider::Shape::Cylinder& cylinder = shape->data.cylinder;
+				const Collider::Shape::Cylinder& cylinder = shape->cylinder;
 
 				scalar_t vls = ball->velocity.LengthSqr();
 
@@ -436,13 +436,13 @@ namespace BilliardPhysics
 		switch (shape->type) {
 			case Collider::Shape::Type::Triangle:
 			{
-				const Collider::Shape::Triangle& triangle = shape->data.triangle;
+				const Collider::Shape::Triangle& triangle = shape->triangle;
 				hit_normal = triangle.normal;
 				break;
 			}
 			case Collider::Shape::Type::Line:
 			{
-				const Collider::Shape::Line& line = shape->data.line;
+				const Collider::Shape::Line& line = shape->line;
 				Vector dr = line.position[1] - line.position[0];
 				hit_normal = ball->position - line.position[0];
 				hit_normal = (hit_normal - hit_normal.Proj(dr)).Unit();
@@ -450,13 +450,13 @@ namespace BilliardPhysics
 			}
 			case Collider::Shape::Type::Point:
 			{
-				const Collider::Shape::Point& point = shape->data.point;
+				const Collider::Shape::Point& point = shape->point;
 				hit_normal = (ball->position - point.position).Unit();
 				break;
 			}
 			case Collider::Shape::Type::Cylinder:
 			{
-				const Collider::Shape::Cylinder& cylinder = shape->data.cylinder;
+				const Collider::Shape::Cylinder& cylinder = shape->cylinder;
 				Vector dr = ball->position - cylinder.position;
 				dr.z = scalar_t(0);
 				hit_normal = dr.Unit();

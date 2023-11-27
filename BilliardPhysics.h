@@ -134,7 +134,16 @@ namespace BilliardPhysics
 
 		void Define(scalar_t radius, scalar_t mass);
 
-		bool IsPocketed() const { return inPocket != nullptr; }
+		Vector PerimeterSpeed() const noexcept
+		{
+			return angularVelocity.Cross(Vector {scalar_t(0), scalar_t(0), -radius});
+		}
+		Vector PerimeterSpeed(const Vector& normal) const noexcept
+		{
+			return angularVelocity.Cross(normal * -radius);
+		}
+
+		bool IsPocketed() const noexcept { return inPocket != nullptr; }
 
 	protected:
 		virtual void ApplyRotation(scalar_t dt);
@@ -143,12 +152,6 @@ namespace BilliardPhysics
 		virtual void OnPocketed(const Pocket* pocket);
 
 	protected:
-		// Bounding box for collider filtering.
-		BoundingBox bbox;
-		// The pocket if it's fully inside one, nullptr otherwise.
-		Pocket* inPocket;
-
-	public:
 		// Radius [m]
 		scalar_t radius;
 		// Mass [kg]
@@ -156,6 +159,7 @@ namespace BilliardPhysics
 		// Mass [kg*m^2]
 		scalar_t massMom;
 
+		scalar_t diameter;
 		scalar_t invMass;
 		scalar_t invMassMom;
 
@@ -164,6 +168,11 @@ namespace BilliardPhysics
 		// Rotation speed and axe [rad./s] in table coords
 		Vector angularVelocity;
 
+		// Bounding box for collider filtering.
+		BoundingBox bbox;
+
+		// The pocket if it's fully inside one, nullptr otherwise.
+		Pocket* inPocket;
 		// Set to false to disable all physics interactions.
 		bool enabled;
 	};
@@ -179,21 +188,17 @@ namespace BilliardPhysics
 		// Return the pocket which the ball is within it's area.
 		Pocket* GetPocketBallInside(const Ball* ball) const;
 
-		bool IsBallInColliderRange(const Ball* ball, const Collider::Shape* shape) const;
-
 		// Returns true if collision shape and ball strobe away from each other, false else (at time dt)
 		bool BallCollided(const Ball* ball, const Collider::Shape* shape, scalar_t dt) const;
 		// Returns true if balls strobe away from each other, false else (at time dt)
 		bool BallCollided(const Ball* b1, const Ball* b2, scalar_t dt) const;
 
-		scalar_t CalcCollisionTime(const Ball* b1, const Ball* b2) const;
+		bool IsBallInColliderRange(const Ball* ball, const Collider::Shape* shape) const;
 		scalar_t CalcCollisionTime(const Ball* ball, const Collider::Shape* shape) const;
+		scalar_t CalcCollisionTime(const Ball* b1, const Ball* b2) const;
 
 		void MoveBalls(scalar_t dt);
 		void CollectColliders(const Ball* ball);
-
-		Vector PerimeterSpeed(const Ball* ball) const;
-		Vector PerimeterSpeedNormal(const Ball* ball, const Vector& normal) const;
 
 		// Ball interaction with a shape collider
 		void BallInteraction(Ball* ball, const Collider::Shape* shape, const Collider* collider);
@@ -227,11 +232,6 @@ namespace BilliardPhysics
 		scalar_t SlideThreshSpeed;
 		// Ball spin deceleration rate
 		scalar_t SpotR;
-
-		// Value used to determine if a ball is stationary or not.
-		// Needs to be manually tweaked.
-		//scalar_t OmegaMin;
-		//scalar_t AirResistance;
 
 		// The distance used to keep balls from touching each other.
 		// Very small value.

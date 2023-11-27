@@ -216,6 +216,16 @@ namespace BilliardPhysics
 			if (box.max.z > max.z || max.z == scalar_t_min()) { max.z = box.max.z; }
 		}
 
+		void Dilate(scalar_t amount) noexcept
+		{
+			min.x -= amount;
+			min.y -= amount;
+			min.z -= amount;
+			max.x += amount;
+			max.y += amount;
+			max.z += amount;
+		}
+
 		Vector min;
 		Vector max;
 	};

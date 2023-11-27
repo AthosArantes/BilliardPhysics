@@ -90,7 +90,9 @@ namespace BilliardPhysics
 		};
 
 	public:
-		virtual ~Collider();
+		virtual ~Collider()
+		{
+		}
 
 		// Update the bounding box of all collider shapes.
 		void Update();
@@ -109,7 +111,9 @@ namespace BilliardPhysics
 	class Pocket
 	{
 	public:
-		virtual ~Pocket();
+		virtual ~Pocket()
+		{
+		}
 
 	public:
 		Vector position;
@@ -124,7 +128,9 @@ namespace BilliardPhysics
 
 	public:
 		Ball();
-		virtual ~Ball();
+		virtual ~Ball()
+		{
+		}
 
 		void Define(scalar_t radius, scalar_t mass);
 

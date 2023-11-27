@@ -30,7 +30,7 @@
 
 namespace BilliardPhysics
 {
-	static const scalar_t SQRTM1 {100000};
+	constexpr scalar_t SQRTM1 = scalar_t(1000000);
 
 	static scalar_t plane_dist(Vector r, Vector rp, Vector n)
 	{
@@ -47,8 +47,6 @@ namespace BilliardPhysics
 	{
 		Define(scalar_t(285) / scalar_t(10000), scalar_t(17) / scalar_t(100));
 	}
-
-	Ball::~Ball() = default;
 
 	void Ball::Define(scalar_t radius_, scalar_t mass_)
 	{
@@ -76,11 +74,6 @@ namespace BilliardPhysics
 	}
 
 	// ==========================================================================================
-	Pocket::~Pocket() = default;
-
-	// ==========================================================================================
-	Collider::~Collider() = default;
-
 	void Collider::Update()
 	{
 		bbox = BoundingBox {};
@@ -143,13 +136,10 @@ namespace BilliardPhysics
 		SlideThreshSpeed = scalar_t(5) / scalar_t(1000);
 		SpotR = sqrt(scalar_t(5));
 
-		//OmegaMin = scalar_t(1) / scalar_t(10);
-		//AirResistance = scalar_t(1) / scalar_t(1000);
+		ContactThreshold = scalar_t(1) / SQRTM1;
 
-		ContactThreshold = scalar_t_epsilon();
-
-		fieldProperty.mu = scalar_t(2) / scalar_t(10);
-		fieldProperty.loss0 = scalar_t(6) / scalar_t(10);
+		fieldProperty.mu = scalar_t(20) / scalar_t(100);
+		fieldProperty.loss0 = scalar_t(60) / scalar_t(100);
 		fieldProperty.loss_max = scalar_t(80) / scalar_t(100);
 		fieldProperty.loss_wspeed = scalar_t(2);
 	}
@@ -591,10 +581,8 @@ namespace BilliardPhysics
 
 	void Engine::StepSimulationEuler(scalar_t dt, int depth)
 	{
-		scalar_t dt1 {};
-		scalar_t dtmin {};
-
-		Ball* colBall = nullptr;
+		scalar_t dtmin = scalar_t(0);
+		Ball* colBall1 = nullptr;
 		Ball* colBall2 = nullptr;
 		const Collider::Shape* colShape = nullptr;
 		const Collider* col = nullptr;
@@ -612,11 +600,11 @@ namespace BilliardPhysics
 			// Check shape collisions
 			for (const Collider* collider : colliders) {
 				for (const Collider::Shape& shape : collider->shapes) {
-					dt1 = CalcCollisionTime(ball, &shape);
-					if (dt1 <= dtmin && dt1 > -dt && !BallCollided(ball, &shape, -dt)) {
+					scalar_t cdt = CalcCollisionTime(ball, &shape);
+					if (cdt < dtmin && cdt >= -dt && !BallCollided(ball, &shape, -dt)) {
 						// dont strobe apart
-						dtmin = dt1;
-						colBall = ball;
+						dtmin = cdt;
+						colBall1 = ball;
 						colShape = &shape;
 						col = collider;
 					}
@@ -629,31 +617,34 @@ namespace BilliardPhysics
 					continue;
 				}
 
-				dt1 = CalcCollisionTime(ball, ball2);
-				if (dt1 < dtmin && dt1 > -dt && !BallCollided(ball2, ball, -dt)) {
+				scalar_t cdt = CalcCollisionTime(ball, ball2);
+				if (cdt < dtmin && cdt >= -dt && !BallCollided(ball2, ball, -dt)) {
 					// dont strobe apart
-					dtmin = dt1;
-					colBall = ball2;
+					dtmin = cdt;
+					colBall1 = ball2;
 					colBall2 = ball;
 					colShape = nullptr;
 				}
 			}
 		}
 
-		if (colShape) {
-			MoveBalls(dtmin);
-			BallInteraction(colBall, colShape, col);
-			colBall->OnCollided(colShape, col, -dtmin);
-
-			StepSimulationEuler(-dtmin, depth + 1);
-
-		} else if (colBall && colBall2) {
-			MoveBalls(dtmin);
-			BallInteraction(colBall, colBall2);
-			colBall->OnCollided(colBall2, -dtmin);
-
-			StepSimulationEuler(-dtmin, depth + 1);
+		// No collision occurred
+		if (!colBall1) {
+			return;
 		}
+
+			MoveBalls(dtmin);
+
+		if (colShape) {
+			BallInteraction(colBall1, colShape, col);
+			colBall1->OnCollided(colShape, col, -dtmin);
+
+		} else if (colBall2) {
+			BallInteraction(colBall1, colBall2);
+			colBall1->OnCollided(colBall2, -dtmin);
+		}
+
+		StepSimulationEuler(-dtmin, ++depth);
 	}
 
 	int Engine::StepSimulation(scalar_t dt)

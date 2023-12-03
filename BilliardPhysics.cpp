@@ -629,6 +629,7 @@ namespace BilliardPhysics
 
 		// timestep with actual speeds, omegas,...
 		StepSimulationEuler(dt, 0);
+		collisions.clear();
 
 		// Calc new accelerations and speeds
 		for (Ball* ball : balls) {

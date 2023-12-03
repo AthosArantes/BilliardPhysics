@@ -620,7 +620,7 @@ namespace BilliardPhysics
 			collisions.clear();
 		}
 
-		StepSimulationEuler(-dtmin);
+		StepSimulationEuler(-dtmin, ++depth);
 	}
 
 	int Engine::StepSimulation(scalar_t dt)

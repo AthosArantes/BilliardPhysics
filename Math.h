@@ -53,12 +53,12 @@ namespace BilliardPhysics
 		return std::numeric_limits<scalar_t>::min();
 	}
 
-	inline scalar_t sqrt(scalar_t v) { return std::sqrt(v); }
-	inline scalar_t acos(scalar_t v) { return std::acos(v); }
-	inline scalar_t abs(scalar_t v) { return std::fabs(v); }
-	inline scalar_t sin(scalar_t v) { return std::sin(v); }
-	inline scalar_t cos(scalar_t v) { return std::cos(v); }
-	inline scalar_t exp(scalar_t v) { return std::exp(v); }
+	inline scalar_t sqrt(scalar_t v) { return ::sqrt(v); }
+	inline scalar_t acos(scalar_t v) { return ::acos(v); }
+	inline scalar_t abs(scalar_t v) { return ::fabs(v); }
+	inline scalar_t sin(scalar_t v) { return ::sin(v); }
+	inline scalar_t cos(scalar_t v) { return ::cos(v); }
+	inline scalar_t exp(scalar_t v) { return ::exp(v); }
 
 	// ==========================================================================================
 	struct Vector
@@ -170,12 +170,17 @@ namespace BilliardPhysics
 			return (*this - v1).NComp(v2 - v1).Length();
 		}
 
-		static Vector ZERO;
+		static Vector ZERO() noexcept;
 
 		scalar_t x;
 		scalar_t y;
 		scalar_t z;
 	};
+
+	inline Vector Vector::ZERO() noexcept
+	{
+		return Vector {scalar_t(0), scalar_t(0), scalar_t(0)};
+	}
 
 	// ==========================================================================================
 	struct BoundingBox

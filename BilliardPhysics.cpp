@@ -38,9 +38,9 @@ namespace BilliardPhysics
 	// ==========================================================================================
 	Ball::Ball() :
 		inPocket(nullptr),
-		position(Vector::ZERO),
-		velocity(Vector::ZERO),
-		angularVelocity(Vector::ZERO),
+		position(Vector::ZERO()),
+		velocity(Vector::ZERO()),
+		angularVelocity(Vector::ZERO()),
 		enabled(true)
 	{
 		Define(scalar_t(285) / scalar_t(10000), scalar_t(17) / scalar_t(100));
@@ -134,8 +134,8 @@ namespace BilliardPhysics
 
 		fieldProperty.mu = scalar_t(20) / scalar_t(100);
 		fieldProperty.loss0 = scalar_t(60) / scalar_t(100);
-		fieldProperty.loss_max = scalar_t(80) / scalar_t(100);
-		fieldProperty.loss_wspeed = scalar_t(2);
+		fieldProperty.loss_max = scalar_t(90) / scalar_t(100);
+		fieldProperty.loss_wspeed = scalar_t(15) / scalar_t(10);
 	}
 
 	Engine::~Engine() = default;
@@ -346,14 +346,14 @@ namespace BilliardPhysics
 			}
 
 			// Pre-translate bbox
-			ball->bbox = BoundingBox(ball->position, ball->position);
+			ball->bbox = BoundingBox {ball->position, ball->position};
 
 			// Translate ball
 			Vector dx = ball->velocity * dt;
 			ball->position += dx;
 
 			// Post-translate bbox
-			ball->bbox.Merge(BoundingBox(ball->position, ball->position));
+			ball->bbox.Merge(BoundingBox {ball->position, ball->position});
 			ball->bbox.Dilate(ball->radius);
 		}
 	}
@@ -362,7 +362,7 @@ namespace BilliardPhysics
 	{
 		colliders.clear();
 
-		// Check cushion collisions
+		// Check cushion colliders
 		for (const Collider* collider : fieldColliders) {
 			if (collider->bbox.Intersects(ball->bbox)) {
 				colliders.push_back(collider);
@@ -371,7 +371,7 @@ namespace BilliardPhysics
 
 		scalar_t ground = ball->position.z - ball->radius;
 
-		// Balls in air check additional collisions
+		// Balls in air check additional colliders
 		if (ground != scalar_t(0) || ball->velocity.z != scalar_t(0)) {
 			for (const Collider* collider : envColliders) {
 				if (collider->bbox.Intersects(ball->bbox)) {
@@ -453,7 +453,7 @@ namespace BilliardPhysics
 		// balls in coord system of b1
 		// stoss
 		Vector b2v = b2->velocity - b1->velocity;
-		Vector b1v = Vector::ZERO;
+		Vector b1v = Vector::ZERO();
 
 		Vector dvn = duvec * duvec.Dot(b2v);
 		Vector dvp = b2v - dvn;
@@ -560,6 +560,11 @@ namespace BilliardPhysics
 			// Check shape collisions
 			for (const Collider* collider : colliders) {
 				for (const Collider::Shape& shape : collider->shapes) {
+					// Prevent duplicate ball-shape interaction
+					if (std::find(collisions.cbegin(), collisions.cend(), (size_t)ball ^ (size_t)&shape) != collisions.cend()) {
+						continue;
+					}
+
 					scalar_t cdt = CalcCollisionTime(ball, &shape);
 					if (cdt < dtmin && cdt >= -dt && !BallCollided(ball, &shape, -dt)) {
 						// dont strobe apart
@@ -574,6 +579,11 @@ namespace BilliardPhysics
 			// Check ball collisions
 			for (Ball* ball2 : balls) {
 				if (ball2 == ball || !ball2->enabled) {
+					continue;
+				}
+
+				// Prevent duplicate ball-ball interaction
+				if (std::find(collisions.cbegin(), collisions.cend(), (size_t)ball2 ^ (size_t)ball) != collisions.cend()) {
 					continue;
 				}
 
@@ -596,15 +606,21 @@ namespace BilliardPhysics
 		MoveBalls(dtmin);
 
 		if (colShape) {
+			collisions.push_back((size_t)colBall1 ^ (size_t)colShape);
 			BallInteraction(colBall1, colShape, col);
 			colBall1->OnCollided(colShape, col, -dtmin);
 
 		} else if (colBall2) {
+			collisions.push_back((size_t)colBall1 ^ (size_t)colBall2);
 			BallInteraction(colBall1, colBall2);
 			colBall1->OnCollided(colBall2, -dtmin);
 		}
 
-		StepSimulationEuler(-dtmin, ++depth);
+		if (-dtmin != dt) {
+			collisions.clear();
+		}
+
+		StepSimulationEuler(-dtmin);
 	}
 
 	int Engine::StepSimulation(scalar_t dt)
@@ -621,7 +637,7 @@ namespace BilliardPhysics
 			}
 
 			// check if balls still moving
-			if (ball->velocity + ball->angularVelocity != Vector::ZERO) {
+			if (ball->velocity + ball->angularVelocity != Vector::ZERO()) {
 				++balls_moving;
 			}
 
@@ -660,7 +676,7 @@ namespace BilliardPhysics
 							scalar_t uspeed_eff_par = uspeed_eff.Dot(uspeed_eff - uspeed_eff2);
 							scalar_t uspeed_eff2_par = uspeed_eff2.Dot(uspeed_eff - uspeed_eff2);
 
-							if (Vector::ZERO.NDist(uspeed_eff, uspeed_eff2) <= SlideThreshSpeed &&
+							if (Vector::ZERO().NDist(uspeed_eff, uspeed_eff2) <= SlideThreshSpeed &&
 								((uspeed_eff_par > scalar_t(0) && uspeed_eff2_par < scalar_t(0)) || (uspeed_eff2_par > scalar_t(0) && uspeed_eff_par < scalar_t(0)))
 							) {
 								// make rolling if uspeed_eff passed 0
@@ -696,8 +712,8 @@ namespace BilliardPhysics
 
 							// Check for low velocities
 							if (ball->angularVelocity.LengthSqr() > wls && ball->velocity.LengthSqr() > vls) {
-								ball->velocity = Vector::ZERO;
-								ball->angularVelocity = Vector::ZERO;
+								ball->velocity = Vector::ZERO();
+								ball->angularVelocity = Vector::ZERO();
 							}
 						}
 					}
@@ -767,8 +783,8 @@ namespace BilliardPhysics
 				scalar_t minz = -pocket->depth + ball->radius;
 				if (ball->position.z < minz) {
 					ball->position.z = minz;
-					ball->velocity = Vector::ZERO;
-					ball->angularVelocity = Vector::ZERO;
+					ball->velocity = Vector::ZERO();
+					ball->angularVelocity = Vector::ZERO();
 					ball->enabled = false;
 					ball->OnPocketed(pocket);
 				}

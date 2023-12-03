@@ -603,6 +603,10 @@ namespace BilliardPhysics
 			return;
 		}
 
+		if (-dtmin != dt) {
+			collisions.clear();
+		}
+
 		MoveBalls(dtmin);
 
 		if (colShape) {
@@ -614,10 +618,6 @@ namespace BilliardPhysics
 			collisions.push_back((size_t)colBall1 ^ (size_t)colBall2);
 			BallInteraction(colBall1, colBall2);
 			colBall1->OnCollided(colBall2, -dtmin);
-		}
-
-		if (-dtmin != dt) {
-			collisions.clear();
 		}
 
 		StepSimulationEuler(-dtmin, ++depth);

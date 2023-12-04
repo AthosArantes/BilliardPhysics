@@ -180,6 +180,16 @@ namespace BilliardPhysics
 	// ==========================================================================================
 	class Engine
 	{
+		struct Collision
+		{
+			size_t hash;
+
+			Ball* ball1;
+			Ball* ball2;
+			const Collider::Shape* shape;
+			const Collider* collider;
+		};
+
 	public:
 		Engine();
 		virtual ~Engine();
@@ -217,8 +227,8 @@ namespace BilliardPhysics
 	private:
 		// Collected colliders to test against a ball.
 		std::vector<const Collider*> colliders;
-		// Collision pair hashes, used to prevent duplicate interactions.
-		std::vector<size_t> collisions;
+		// Collisions that happened exactly at the same time.
+		std::vector<Collision> collisions;
 
 	protected:
 		// m/s^2

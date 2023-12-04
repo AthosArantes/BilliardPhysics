@@ -25,6 +25,7 @@
 */
 
 #include "BilliardPhysics.h"
+#include <algorithm>
 
 namespace BilliardPhysics
 {
@@ -52,7 +53,7 @@ namespace BilliardPhysics
 		mass = mass_;
 
 		diameter = radius * scalar_t(2);
-		massMom = scalar_t(2) * mass * radius * radius / scalar_t(5);
+		massMom = scalar_t(2) / scalar_t(5) * mass * (radius * radius);
 		invMass = mass > scalar_t(0) ? scalar_t(1) / mass : scalar_t(0);
 		invMassMom = massMom > scalar_t(0) ? scalar_t(1) / massMom : scalar_t(0);
 	}
@@ -471,8 +472,8 @@ namespace BilliardPhysics
 		Vector fric_dir = ((perimeter_speed_b2 - perimeter_speed_b1) + dvp).Unit();
 		Vector dpp = fric_dir * (-dpn.Length() * MuBall); // dp parallel of ball2
 
-		Vector dw2 = dpp.Cross(duvec) * (b2->radius * scalar_t(2) / b2->massMom);
-		Vector dw1 = dpp.Cross(duvec) * (b1->radius * scalar_t(2) / b1->massMom);
+		Vector dw2 = dpp.Cross(duvec) * b2->diameter * b2->invMassMom;
+		Vector dw1 = dpp.Cross(duvec) * b1->diameter * b1->invMassMom;
 		Vector dw2max = (b2->angularVelocity - b1->angularVelocity).Proj(dw2) * half;
 		Vector dw1max = (b1->angularVelocity - b2->angularVelocity).Proj(dw2) * half;
 		if (dw1.Length() > dw1max.Length() || dw2.Length() > dw2max.Length()) {
@@ -542,10 +543,6 @@ namespace BilliardPhysics
 	void Engine::StepSimulationEuler(scalar_t dt, int depth)
 	{
 		scalar_t dtmin = scalar_t(0);
-		Ball* colBall1 = nullptr;
-		Ball* colBall2 = nullptr;
-		const Collider::Shape* colShape = nullptr;
-		const Collider* col = nullptr;
 
 		MoveBalls(dt);
 
@@ -560,18 +557,30 @@ namespace BilliardPhysics
 			// Check shape collisions
 			for (const Collider* collider : colliders) {
 				for (const Collider::Shape& shape : collider->shapes) {
-					// Prevent duplicate ball-shape interaction
-					if (std::find(collisions.cbegin(), collisions.cend(), (size_t)ball ^ (size_t)&shape) != collisions.cend()) {
-						continue;
-					}
-
 					scalar_t cdt = CalcCollisionTime(ball, &shape);
 					if (cdt < dtmin && cdt >= -dt && !BallCollided(ball, &shape, -dt)) {
 						// dont strobe apart
 						dtmin = cdt;
-						colBall1 = ball;
-						colShape = &shape;
-						col = collider;
+						collisions.clear();
+					}
+
+					if (cdt != dtmin) {
+						continue;
+					}
+
+					size_t h = reinterpret_cast<size_t>(ball) ^ reinterpret_cast<size_t>(&shape);
+					auto it = std::find_if(collisions.cbegin(), collisions.cend(), [h](const Collision& c)
+					{
+						return c.hash == h;
+					});
+					if (cdt == dtmin && it == collisions.cend()) {
+						collisions.emplace_back(Collision {
+							h,
+							ball,
+							nullptr,
+							&shape,
+							collider
+						});
 					}
 				}
 			}
@@ -582,43 +591,53 @@ namespace BilliardPhysics
 					continue;
 				}
 
-				// Prevent duplicate ball-ball interaction
-				if (std::find(collisions.cbegin(), collisions.cend(), (size_t)ball2 ^ (size_t)ball) != collisions.cend()) {
-					continue;
-				}
-
 				scalar_t cdt = CalcCollisionTime(ball, ball2);
 				if (cdt < dtmin && cdt >= -dt && !BallCollided(ball2, ball, -dt)) {
 					// dont strobe apart
 					dtmin = cdt;
-					colBall1 = ball2;
-					colBall2 = ball;
-					colShape = nullptr;
+					collisions.clear();
+				}
+
+				if (cdt != dtmin) {
+					continue;
+				}
+
+				size_t h = reinterpret_cast<size_t>(ball) ^ reinterpret_cast<size_t>(ball2);
+				auto it = std::find_if(collisions.cbegin(), collisions.cend(), [h](const Collision& c)
+				{
+					return c.hash == h;
+				});
+				if (cdt == dtmin && it == collisions.cend()) {
+					collisions.emplace_back(Collision {
+						h,
+						ball,
+						ball2,
+						nullptr,
+						nullptr
+					});
 				}
 			}
 		}
 
 		// No collision occurred
-		if (!colBall1) {
+		if (collisions.empty()) {
 			return;
-		}
-
-		if (-dtmin != dt) {
-			collisions.clear();
 		}
 
 		MoveBalls(dtmin);
 
-		if (colShape) {
-			collisions.push_back((size_t)colBall1 ^ (size_t)colShape);
-			BallInteraction(colBall1, colShape, col);
-			colBall1->OnCollided(colShape, col, -dtmin);
+		for (Collision& c : collisions)
+		{
+			if (c.shape) {
+				BallInteraction(c.ball1, c.shape, c.collider);
+				c.ball1->OnCollided(c.shape, c.collider, -dtmin);
 
-		} else if (colBall2) {
-			collisions.push_back((size_t)colBall1 ^ (size_t)colBall2);
-			BallInteraction(colBall1, colBall2);
-			colBall1->OnCollided(colBall2, -dtmin);
+			} else if (c.ball2) {
+				BallInteraction(c.ball1, c.ball2);
+				c.ball1->OnCollided(c.ball2, -dtmin);
+			}
 		}
+		collisions.clear();
 
 		StepSimulationEuler(-dtmin, ++depth);
 	}
@@ -629,7 +648,6 @@ namespace BilliardPhysics
 
 		// timestep with actual speeds, omegas,...
 		StepSimulationEuler(dt, 0);
-		collisions.clear();
 
 		// Calc new accelerations and speeds
 		for (Ball* ball : balls) {

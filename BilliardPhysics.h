@@ -150,6 +150,7 @@ namespace BilliardPhysics
 		virtual void OnCollided(const Ball* ball, scalar_t dt);
 		virtual void OnCollided(const Collider::Shape* shape, const Collider* collider, scalar_t dt);
 		virtual void OnPocketed(const Pocket* pocket);
+		virtual void OnLoss();
 
 	protected:
 		// Radius [m]
@@ -248,6 +249,10 @@ namespace BilliardPhysics
 		// The distance used to keep balls from touching each other.
 		// Very small value.
 		scalar_t ContactThreshold;
+		// The slate/cloth bounds.
+		// Balls inside these bounds will bounce when their z position gets below zero.
+		// The z component determines when the ball gets effectively removed from simulation.
+		Vector SlateBound;
 
 		std::vector<Ball*> balls;
 		std::vector<Pocket*> pockets;

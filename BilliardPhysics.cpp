@@ -38,10 +38,10 @@ namespace BilliardPhysics
 
 	// ==========================================================================================
 	Ball::Ball() :
-		inPocket(nullptr),
 		position(Vector::ZERO()),
 		velocity(Vector::ZERO()),
 		angularVelocity(Vector::ZERO()),
+		inPocket(nullptr),
 		enabled(true)
 	{
 		Define(scalar_t(285) / scalar_t(10000), scalar_t(17) / scalar_t(100));
@@ -128,7 +128,7 @@ namespace BilliardPhysics
 	Engine::Engine()
 	{
 		Gravity = scalar_t(981) / scalar_t(100);
-		MuRoll = scalar_t(1) / scalar_t(100);
+		MuRoll = scalar_t(8) / scalar_t(1000);
 		MuSlide = scalar_t(2) / scalar_t(10);
 		MuBall = scalar_t(5) / scalar_t(100);
 
@@ -539,8 +539,7 @@ namespace BilliardPhysics
 			Vector dr = ball->position - ball2->position;
 			scalar_t dist = ball->radius + ball2->radius;
 			if (dr.LengthSqr() <= dist * dist) {
-				dist -= dr.Length();
-				ball->position += dr.Unit() * (dist + ContactThreshold);
+				ball->position = ball2->position + dr.Unit() * (dist + ContactThreshold);
 			}
 		}
 	}
@@ -592,7 +591,7 @@ namespace BilliardPhysics
 
 			// Check ball collisions
 			for (Ball* ball2 : balls) {
-				if (ball2 == ball || !ball2->enabled || ball2->IsPocketed()) {
+				if (ball2 == ball || !ball2->enabled || ball2->IsPocketed() || !ball->bbox.Intersects(ball2->bbox)) {
 					continue;
 				}
 
@@ -666,155 +665,157 @@ namespace BilliardPhysics
 				continue;
 			}
 
-			// Check if balls still moving
+			// Check if ball still moving
+			bool moving = false;
 			if (ball->velocity + ball->angularVelocity != Vector::ZERO()) {
 				++balls_moving;
+				moving = true;
 			}
 
-			ball->ApplyRotation(dt);
-
+			bool inPlayfield = abs(ball->position.x) <= SlateBound.x && abs(ball->position.y) <= SlateBound.y;
 			scalar_t ground = ball->position.z - ball->radius;
 			Pocket* pocket = ball->inPocket;
-			bool inPlayfield = abs(ball->position.x) <= SlateBound.x && abs(ball->position.y) <= SlateBound.y;
 
-			if (!pocket) {
-				// Ball is not fully inside a pocket, but may be hovering one.
-				pocket = GetPocketBallInside(ball);
+			if (moving) {
+				ball->ApplyRotation(dt);
 
 				if (!pocket) {
-					// absolute and relative perimeter speed
-					Vector uspeed = ball->PerimeterSpeed();
-					Vector uspeed_eff = uspeed + ball->velocity;
+					// Ball is not fully inside a pocket, but may be hovering one.
+					pocket = GetPocketBallInside(ball);
 
-					// only if ball not flying do sliding/rolling
-					if (ground == scalar_t(0)) {
-						// if sliding
-						if (uspeed_eff.Length() > SlideThreshSpeed) {
-							// acc caused by friction
-							Vector fricaccel = uspeed_eff.Unit() * (-MuSlide * Gravity);
+					if (!pocket) {
+						// absolute and relative perimeter speed
+						Vector uspeed = ball->PerimeterSpeed();
+						Vector uspeed_eff = uspeed + ball->velocity;
 
-							// angular acc caused by friction
-							Vector fricmom = fricaccel.Cross(Vector {scalar_t(0), scalar_t(0), -ball->radius}) * ball->mass;
-							Vector waccel = fricmom * -ball->invMassMom;
+						// only if ball not flying do sliding/rolling
+						if (ground == scalar_t(0)) {
+							// if sliding
+							if (uspeed_eff.Length() > SlideThreshSpeed) {
+								// acc caused by friction
+								Vector fricaccel = uspeed_eff.Unit() * (-MuSlide * Gravity);
 
-							// perform accel
-							ball->angularVelocity += waccel * dt;
-							ball->velocity += fricaccel * dt;
-							Vector uspeed2 = ball->PerimeterSpeed();
-							Vector uspeed_eff2 = uspeed2 + ball->velocity;
+								// angular acc caused by friction
+								Vector fricmom = fricaccel.Cross(Vector {scalar_t(0), scalar_t(0), -ball->radius}) * ball->mass;
+								Vector waccel = fricmom * -ball->invMassMom;
 
-							// if uspeed_eff passes 0
-							scalar_t uspeed_eff_par = uspeed_eff.Dot(uspeed_eff - uspeed_eff2);
-							scalar_t uspeed_eff2_par = uspeed_eff2.Dot(uspeed_eff - uspeed_eff2);
+								// perform accel
+								ball->angularVelocity += waccel * dt;
+								ball->velocity += fricaccel * dt;
+								Vector uspeed2 = ball->PerimeterSpeed();
+								Vector uspeed_eff2 = uspeed2 + ball->velocity;
 
-							if (Vector::ZERO().NDist(uspeed_eff, uspeed_eff2) <= SlideThreshSpeed &&
-								((uspeed_eff_par > scalar_t(0) && uspeed_eff2_par < scalar_t(0)) || (uspeed_eff2_par > scalar_t(0) && uspeed_eff_par < scalar_t(0)))
-							) {
-								// make rolling if uspeed_eff passed 0
+								// if uspeed_eff passes 0
+								scalar_t uspeed_eff_par = uspeed_eff.Dot(uspeed_eff - uspeed_eff2);
+								scalar_t uspeed_eff2_par = uspeed_eff2.Dot(uspeed_eff - uspeed_eff2);
+
+								if (Vector::ZERO().NDist(uspeed_eff, uspeed_eff2) <= SlideThreshSpeed &&
+									((uspeed_eff_par > scalar_t(0) && uspeed_eff2_par < scalar_t(0)) || (uspeed_eff2_par > scalar_t(0) && uspeed_eff_par < scalar_t(0)))
+								) {
+									// make rolling if uspeed_eff passed 0
+									ball->velocity = ball->angularVelocity.Cross(Vector {scalar_t(0), scalar_t(0), ball->radius});
+								}
+
+							} else { // if rolling
+								Vector waccel;
+								{
+									scalar_t roll_mom_r = MuRoll * ball->massMom / ball->mass / ball->diameter;
+									Vector rollmom = Vector {scalar_t(0), scalar_t(0), ball->mass * Gravity * roll_mom_r}.Cross(ball->velocity.Unit());
+									waccel = rollmom * -ball->invMassMom;
+								}
+								scalar_t ws = ball->angularVelocity.LengthSqr();
+
+								// Independently update spin component
+								{
+									scalar_t alpha = (SpotR * ball->radius * Gravity / ball->diameter) * dt;
+									scalar_t vz = abs(ball->angularVelocity.z);
+									if (vz <= alpha) {
+										ball->angularVelocity.z = scalar_t(0);
+									} else {
+										ball->angularVelocity.z *= (vz - alpha) / vz;
+									}
+								}
+
+								ball->angularVelocity += waccel * dt;
+
+								// Rolling on a flat surface should never cause angular velocity to increase,
+								// so if waccel increased the angular velocity (due to gravity force being used), it's time to zero.
+								if (ball->angularVelocity.LengthSqr() > ws) {
+									ball->angularVelocity = Vector::ZERO();
+								}
+
+								// Align velocity with angularVelocity to assure rolling
 								ball->velocity = ball->angularVelocity.Cross(Vector {scalar_t(0), scalar_t(0), ball->radius});
 							}
+						}
 
-						} else { // if rolling
-							Vector waccel;
-							{
-								scalar_t roll_mom_r = MuRoll * ball->massMom / ball->mass / ball->diameter;
-								Vector rollmom = Vector {scalar_t(0), scalar_t(0), ball->mass * Gravity * roll_mom_r}.Cross(ball->velocity.Unit());
-								waccel = rollmom * -ball->invMassMom;
+						// Ball collided with the table plane
+						if (ground < scalar_t(0) && inPlayfield) {
+							BallInteraction(ball);
+							ball->OnCollided(nullptr, nullptr, dt);
+
+							if (ball->velocity.z < Gravity * dt * scalar_t(2)) {
+								ball->velocity.z = scalar_t(0);
 							}
 
-							scalar_t wls = ball->angularVelocity.LengthSqr();
-							scalar_t vls = ball->velocity.LengthSqr();
+							// Reposition the ball to be on the table plane.
+							// IMPROVE: use better algorithm to find the exact position (not just z) the ball should be placed.
+							ball->position.z = ball->radius;
+							ground = scalar_t(0);
+						}
 
-							// Independently update spin component
-							{
-								scalar_t alpha = SpotR * ball->radius * Gravity / ball->diameter;
-								alpha *= dt;
-								if (abs(ball->angularVelocity.z) < alpha) {
-									ball->angularVelocity.z = scalar_t(0);
-								} else {
-									ball->angularVelocity.z += (ball->angularVelocity.z > scalar_t(0)) ? -alpha : alpha;
+					} else {
+						if (ground <= -ball->radius) {
+							// Ball is completely inside the pocket now.
+							ball->inPocket = pocket;
+
+						} else if (ground < scalar_t(0)) {
+							// Check ball collision with the pocket edge
+							Vector dr = ball->position - pocket->position;
+							dr.z = scalar_t(0);
+							dr = dr.Unit() * pocket->radius;
+
+							if (dr != Vector::ZERO()) {
+								dr += pocket->position; // dr is a point in pocket edge
+
+								// Check if the ball is intersecting the collision point
+								if ((ball->position - dr).LengthSqr() < ball->radius * ball->radius) {
+									Vector normal = (ball->position - dr).Unit();
+									ball->velocity -= ball->velocity.Proj(normal);
+									ball->position = dr + normal * ball->radius;
 								}
 							}
-
-							ball->angularVelocity += waccel * dt;
-
-							// align velocity with angularVelocity to assure rolling
-							ball->velocity = ball->angularVelocity.Cross(Vector {scalar_t(0), scalar_t(0), ball->radius});
-
-							// Check for low velocities
-							if (ball->angularVelocity.LengthSqr() > wls && ball->velocity.LengthSqr() > vls) {
-								ball->velocity = Vector::ZERO();
-								ball->angularVelocity = Vector::ZERO();
-							}
 						}
-					}
-
-					// Ball collided with the table plane
-					if (ground < scalar_t(0) && inPlayfield) {
-						BallInteraction(ball);
-						ball->OnCollided(nullptr, nullptr, dt);
-
-						if (ball->velocity.z < Gravity * dt * scalar_t(2)) {
-							ball->velocity.z = scalar_t(0);
-						}
-
-						// Reposition the ball to be on the table plane.
-						// IMPROVE: use better algorithm to find the exact position (not just z) the ball should be placed.
-						ball->position.z = ball->radius;
-						ground = scalar_t(0);
 					}
 
 				} else {
-					if (ground <= -ball->radius) {
-						// Ball is completely inside the pocket now.
-						ball->inPocket = pocket;
+					// Bounce the ball inside the pocket
+					Vector dr = ball->position - pocket->position;
+					dr.z = scalar_t(0);
 
-					} else if (ground < scalar_t(0)) {
-						// Check ball collision with the pocket edge
-						Vector dr = ball->position - pocket->position;
-						dr.z = scalar_t(0);
-						dr = dr.Unit() * pocket->radius;
+					scalar_t rs = (pocket->radius - ball->radius);
+					rs *= rs;
 
-						if (dr != Vector::ZERO()) {
-							dr += pocket->position; // dr is a point in pocket edge
+					if (dr.LengthSqr() > rs) {
+						scalar_t z = ball->velocity.z;
+						ball->velocity -= ball->velocity.Proj(ball->position - pocket->position) * scalar_t(2);
+						ball->velocity.z = z;
 
-							// Check if the ball is intersecting the collision point
-							if ((ball->position - dr).LengthSqr() < ball->radius * ball->radius) {
-								Vector normal = (ball->position - dr).Unit();
-								ball->velocity -= ball->velocity.Proj(normal);
-								ball->position = dr + normal * ball->radius;
-							}
-						}
+						dr = dr.Unit();
+						z = ball->position.z;
+						ball->position = pocket->position + (dr * pocket->radius) - (dr * ball->radius);
+						ball->position.z = z;
 					}
-				}
 
-			} else {
-				// Bounce the ball inside the pocket
-				Vector dr = ball->position - pocket->position;
-				dr.z = scalar_t(0);
-
-				scalar_t rs = (pocket->radius - ball->radius);
-				rs *= rs;
-
-				if (dr.LengthSqr() > rs) {
-					scalar_t z = ball->velocity.z;
-					ball->velocity -= ball->velocity.Proj(ball->position - pocket->position) * scalar_t(2);
-					ball->velocity.z = z;
-
-					dr = dr.Unit();
-					z = ball->position.z;
-					ball->position = pocket->position + (dr * pocket->radius) - (dr * ball->radius);
-					ball->position.z = z;
-				}
-
-				// Clamp balls inside the pocket
-				scalar_t minz = -pocket->depth + ball->radius;
-				if (ball->position.z < minz) {
-					ball->position.z = minz;
-					ball->velocity = Vector::ZERO();
-					ball->angularVelocity = Vector::ZERO();
-					ball->enabled = false;
-					ball->OnPocketed(pocket);
+					// Clamp balls inside the pocket
+					scalar_t minz = -pocket->depth + ball->radius;
+					if (ball->position.z < minz) {
+						ball->position.z = minz;
+						ball->velocity = Vector::ZERO();
+						ball->angularVelocity = Vector::ZERO();
+						ball->enabled = false;
+						ball->OnPocketed(pocket);
+					}
 				}
 			}
 

@@ -215,8 +215,6 @@ namespace BilliardPhysics
 		void BallInteraction(Ball* ball, const Collider::Shape* shape, const Collider* collider);
 		// Ball interaction with another ball
 		void BallInteraction(Ball* b1, Ball* b2);
-		// Ball interaction with table
-		void BallInteraction(Ball* ball);
 
 		// Apply collision threshold to intersecting balls.
 		void ApplyContactThreshold(Ball* ball);

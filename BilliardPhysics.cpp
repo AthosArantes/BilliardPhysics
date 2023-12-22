@@ -391,35 +391,41 @@ namespace BilliardPhysics
 	{
 		Vector hit_normal;
 
-		switch (shape->type) {
-			case Collider::Shape::Type::Triangle:
-			{
-				const Collider::Shape::Triangle& triangle = shape->triangle;
-				hit_normal = triangle.normal;
-				break;
+		if (shape) {
+			switch (shape->type) {
+				case Collider::Shape::Type::Triangle:
+				{
+					const Collider::Shape::Triangle& triangle = shape->triangle;
+					hit_normal = triangle.normal;
+					break;
+				}
+				case Collider::Shape::Type::Line:
+				{
+					const Collider::Shape::Line& line = shape->line;
+					Vector dr = line.position[1] - line.position[0];
+					hit_normal = ball->position - line.position[0];
+					hit_normal = (hit_normal - hit_normal.Proj(dr)).Unit();
+					break;
+				}
+				case Collider::Shape::Type::Point:
+				{
+					const Collider::Shape::Point& point = shape->point;
+					hit_normal = (ball->position - point.position).Unit();
+					break;
+				}
+				case Collider::Shape::Type::Cylinder:
+				{
+					const Collider::Shape::Cylinder& cylinder = shape->cylinder;
+					Vector dr = ball->position - cylinder.position;
+					dr.z = scalar_t(0);
+					hit_normal = dr.Unit();
+					break;
+				}
 			}
-			case Collider::Shape::Type::Line:
-			{
-				const Collider::Shape::Line& line = shape->line;
-				Vector dr = line.position[1] - line.position[0];
-				hit_normal = ball->position - line.position[0];
-				hit_normal = (hit_normal - hit_normal.Proj(dr)).Unit();
-				break;
-			}
-			case Collider::Shape::Type::Point:
-			{
-				const Collider::Shape::Point& point = shape->point;
-				hit_normal = (ball->position - point.position).Unit();
-				break;
-			}
-			case Collider::Shape::Type::Cylinder:
-			{
-				const Collider::Shape::Cylinder& cylinder = shape->cylinder;
-				Vector dr = ball->position - cylinder.position;
-				dr.z = scalar_t(0);
-				hit_normal = dr.Unit();
-				break;
-			}
+
+		} else {
+			// If no shape then the collision is with the table slate
+			hit_normal = Vector {scalar_t(0), scalar_t(0), scalar_t(1)};
 		}
 
 		const Collider::Property* prop = (collider && collider->property) ? collider->property : &fieldProperty;
@@ -498,35 +504,6 @@ namespace BilliardPhysics
 		dv2.z = scalar_t(0);
 		b1->velocity += dv1;
 		b2->velocity += dv2;
-	}
-
-	// Ball interaction with table playfield
-	void Engine::BallInteraction(Ball* ball)
-	{
-		const Collider::Property& prop = fieldProperty;
-
-		Vector hit_normal {scalar_t(0), scalar_t(0), scalar_t(1)};
-		Vector vn = ball->velocity.Proj(hit_normal);
-		Vector vp = ball->velocity - vn;
-
-		// normal component
-		scalar_t loss = prop.loss0 + (prop.loss_max - prop.loss0) * (scalar_t(1) - exp(-vn.Length() / prop.loss_wspeed));
-		Vector dv = vn * -(scalar_t(1) + sqrt(scalar_t(1) - loss));
-		ball->velocity += dv;
-
-		// parallel component
-		Vector ps = ball->PerimeterSpeed(hit_normal);
-		dv = (ps + vp).Unit() * (-dv.Length() * prop.mu);
-		Vector dw = (dv * (ball->mass / scalar_t(2) / ball->massMom)).Cross(hit_normal * ball->diameter);
-		Vector dw2 = dw + ball->angularVelocity.Proj(dw);
-
-		if (dw2.Dot(ball->angularVelocity) < scalar_t(0)) {
-			dw = dw - dw2;
-			dv = dv.Unit() * (dw.Length() * scalar_t(2) * ball->massMom / ball->mass / ball->diameter);
-		}
-
-		ball->angularVelocity += dw;
-		ball->velocity += dv;
 	}
 
 	void Engine::ApplyContactThreshold(Ball* ball)

@@ -728,7 +728,7 @@ namespace BilliardPhysics
 
 						// Ball collided with the table plane
 						if (ground < scalar_t(0) && inPlayfield) {
-							BallInteraction(ball);
+							BallInteraction(ball, nullptr, nullptr);
 							ball->OnCollided(nullptr, nullptr, dt);
 
 							// Prevent ball from floating forever...

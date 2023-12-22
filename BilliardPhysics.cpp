@@ -731,12 +731,17 @@ namespace BilliardPhysics
 							BallInteraction(ball);
 							ball->OnCollided(nullptr, nullptr, dt);
 
+							// Prevent ball from floating forever...
 							if (ball->velocity.z < Gravity * dt * scalar_t(2)) {
 								ball->velocity.z = scalar_t(0);
 							}
 
 							// Reposition the ball to be on the table plane.
-							// IMPROVE: use better algorithm to find the exact position (not just z) the ball should be placed.
+							Vector pos = ball->position + ball->velocity * -dt;
+							if (pos.z > ball->radius) {
+								Vector dr = ball->position - pos;
+								ball->position = pos + dr * (ground / dr.z);
+							}
 							ball->position.z = ball->radius;
 							ground = scalar_t(0);
 						}

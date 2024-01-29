@@ -122,7 +122,11 @@ namespace BilliardPhysics
 
 		Vector Cross(const Vector& rhs) const noexcept
 		{
-			return {y * rhs.z - rhs.y * z, z * rhs.x - rhs.z * x, x * rhs.y - rhs.x * y};
+			return {
+				y * rhs.z - rhs.y * z,
+				z * rhs.x - rhs.z * x,
+				x * rhs.y - rhs.x * y
+			};
 		}
 
 		scalar_t Dot(const Vector& rhs) const noexcept
@@ -168,6 +172,12 @@ namespace BilliardPhysics
 		scalar_t NDist(const Vector& v1, const Vector& v2) const noexcept
 		{
 			return (*this - v1).NComp(v2 - v1).Length();
+		}
+
+		// Normal square distance to line(v1,v2)
+		scalar_t NDist2(const Vector& v1, const Vector& v2) const noexcept
+		{
+			return (*this - v1).NComp(v2 - v1).LengthSqr();
 		}
 
 		static Vector ZERO() noexcept;

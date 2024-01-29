@@ -183,8 +183,6 @@ namespace BilliardPhysics
 	{
 		struct Collision
 		{
-			size_t hash;
-
 			Ball* ball1;
 			Ball* ball2;
 			const Collider::Shape* shape;
@@ -196,6 +194,10 @@ namespace BilliardPhysics
 		virtual ~Engine();
 
 	protected:
+		bool IsBallInsidePlayfield(const Ball* ball) const {
+			return abs(ball->position.x) <= SlateBound.x && abs(ball->position.y) <= SlateBound.y;
+		}
+
 		// Return the pocket which the ball is within it's area.
 		Pocket* GetPocketBallInside(const Ball* ball) const;
 
@@ -239,7 +241,7 @@ namespace BilliardPhysics
 		// Friction const between ball and ball
 		scalar_t MuBall;
 
-		// cm/s
+		// cm/s^2
 		scalar_t SlideThreshSpeed;
 		// Ball spin deceleration rate
 		scalar_t SpotR;

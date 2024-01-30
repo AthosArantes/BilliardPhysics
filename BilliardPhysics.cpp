@@ -724,7 +724,7 @@ namespace BilliardPhysics
 									waccel = rollmom * -ball->invMassMom;
 
 									// Spin deceleration rate
-									waccel.z = SpotR * scalar_t((ball->angularVelocity.z < scalar_t(0)) - (scalar_t(0) < ball->angularVelocity.z));
+									waccel.z = SpotR * scalar_t(int(ball->angularVelocity.z < scalar_t(0)) - int(scalar_t(0) < ball->angularVelocity.z));
 
 									waccel *= dt;
 									if (waccel.z * waccel.z > ball->angularVelocity.z * ball->angularVelocity.z) {

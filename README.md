@@ -1,17 +1,20 @@
 # Billiard Physics
-A library for calculating billiard physics. This project takes the physics code from FooBillard++ into a single base class for further use.
+A library for calculating billiard physics. This project takes the physics code from FooBillard++ into a modern design.
 
 **Changes**
 
- - Main physics code condensed into a single class, using modern C++;
  - Renamed classes/struct for better clarification;
- - ShapeGroup's for better collision detection performance;
- - Pocket edge collisions (Prevents ball from clipping through the table when falling into the pocket at very slow speeds);
- - The table "slate" or "cloth" is the plane zero, rather than using a shape;
+ - Colliders are groups of shapes, each shape/collider have it's own AABB for better performance;
+ - Added pocket edge collisions (Prevents ball from clipping through the table when falling into the pocket at very slow speeds);
+ - The table "slate" or "cloth" is the plane zero, not a collider;
 
 **Requirements**
-C++ 17 Compiler and the std library.
-This projects provides a clean base for calculating billiard physics, but the interpretation of moved balls, collisions (ball-cushion, ball-ball) is still up to the developer to implement.
+
+C++ 17 Compiler and the std library (vector and algorithm).
+
+**Notes**
+
+The interpretation of moved balls, collisions (ball-cushion, ball-ball) is still up to the developer to implement.
 
 ## FooBillard++ License
 

@@ -539,27 +539,32 @@ namespace BilliardPhysics
 
 			CollectColliders(ball);
 
+#if 0
 			// Check slate collision
 			if (ball->position.z < ball->radius && GetPocketBallInside(ball) == nullptr && IsBallInsidePlayfield(ball)) {
 				scalar_t ct = (ball->position.z - ball->radius) / ball->velocity.z;
 				ct = (scalar_t(1) - ct) * -dt;
+
 				assert(ct >= -dt);
 
-				// Clear collisions vector if this collision happened earlier
-				if (ct < dtmin) {
-					dtmin = ct;
-					collisions.clear();
-				}
+				if (ct >= -dt && ct <= dtmin) {
+					// Clear collisions vector if this collision happened earlier
+					if (ct < dtmin) {
+						dtmin = ct;
+						collisions.clear();
+					}
 
-				// Store this collision
-				auto it = std::find_if(collisions.cbegin(), collisions.cend(), [ball](const Collision& c)
-				{
-					return c.ball1 == ball && c.ball2 == nullptr && c.shape == nullptr;
-				});
-				if (it == collisions.cend()) {
-					collisions.emplace_back(Collision {ball, nullptr, nullptr, nullptr});
+					// Store this collision
+					auto it = std::find_if(collisions.cbegin(), collisions.cend(), [ball](const Collision& c)
+					{
+						return c.ball1 == ball && c.ball2 == nullptr && c.shape == nullptr;
+					});
+					if (it == collisions.cend()) {
+						collisions.emplace_back(Collision {ball, nullptr, nullptr, nullptr});
+					}
 				}
 			}
+#endif
 
 			// Check shape collisions
 			for (const Collider* collider : colliders) {
@@ -630,6 +635,7 @@ namespace BilliardPhysics
 				BallInteraction(c.ball1, c.ball2);
 				c.ball1->OnCollided(c.ball2, -dtmin);
 
+#if 0
 			} else {
 				// Assure the ball is exactly "on table"
 				c.ball1->position.z = c.ball1->radius;
@@ -642,6 +648,7 @@ namespace BilliardPhysics
 				}
 
 				c.ball1->OnCollided(nullptr, nullptr, -dtmin);
+#endif
 			}
 		}
 		collisions.clear();
@@ -671,7 +678,8 @@ namespace BilliardPhysics
 
 			// Check if ball still moving
 			bool moving = (ball->velocity + ball->angularVelocity != Vector::ZERO());
-			bool onGround = ((ball->position.z - ball->radius) == scalar_t(0));
+			bool onSlate = ((ball->position.z - ball->radius) == scalar_t(0));
+			bool inPlayfield = IsBallInsidePlayfield(ball);
 			Pocket* pocket = ball->inPocket;
 
 			if (moving) {
@@ -689,7 +697,7 @@ namespace BilliardPhysics
 						Vector uspeed_eff = uspeed + ball->velocity;
 
 						// only if ball not flying do sliding/rolling
-						if (onGround) {
+						if (onSlate) {
 							// if sliding
 							if (uspeed_eff.LengthSqr() > SlideThreshSpeed) {
 								// acc caused by friction
@@ -744,6 +752,28 @@ namespace BilliardPhysics
 								// Align velocity with angularVelocity to assure rolling
 								ball->velocity = ball->angularVelocity.Cross(Vector {scalar_t(0), scalar_t(0), ball->radius});
 							}
+						}
+
+						// Check ball collision with slate
+						// IMPROVE: This collision interaction is better suited in the StepSimulationEuler(), with proper rollback and all.
+						// Temporarily reverted to this until a better code for corner cases is implemented.
+						if (ball->position.z < ball->radius && inPlayfield) {
+							BallInteraction(ball, nullptr, nullptr);
+							ball->OnCollided(nullptr, nullptr, dt);
+
+							// Prevent ball from floating forever...
+							if (ball->velocity.z < Gravity * dt * scalar_t(2)) {
+								ball->velocity.z = scalar_t(0);
+							}
+
+							// Reposition the ball to be on the table plane.
+							Vector pos = ball->position + ball->velocity * -dt;
+							if (pos.z > ball->radius) {
+								Vector dr = ball->position - pos;
+								ball->position = pos + dr * ((ball->position.z - ball->radius) / dr.z);
+							}
+							ball->position.z = ball->radius;
+							onSlate = true;
 						}
 
 					} else {
@@ -802,7 +832,7 @@ namespace BilliardPhysics
 			}
 
 			// Gravity
-			if (!onGround || pocket != nullptr || !IsBallInsidePlayfield(ball)) {
+			if (!onSlate || pocket != nullptr || !inPlayfield) {
 				ball->velocity.z += -Gravity * dt;
 			}
 

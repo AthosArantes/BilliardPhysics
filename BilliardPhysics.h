@@ -194,12 +194,12 @@ namespace BilliardPhysics
 		virtual ~Engine();
 
 	protected:
-		bool IsBallInsidePlayfield(const Ball* ball) const {
+		bool IsBallWithinSlateBounds(const Ball* ball) const {
 			return abs(ball->position.x) <= SlateBound.x && abs(ball->position.y) <= SlateBound.y;
 		}
 
-		// Return the pocket which the ball is within it's area.
-		Pocket* GetPocketBallInside(const Ball* ball) const;
+		// Return the pocket the ball is falling into, nullptr otherwise.
+		Pocket* GetPocketBallIsFallingInto(const Ball* ball) const;
 
 		// Returns true if collision shape and ball strobe away from each other, false else (at time dt)
 		bool BallCollided(const Ball* ball, const Collider::Shape* shape, scalar_t dt) const;
